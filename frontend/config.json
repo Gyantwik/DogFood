@@ -1,0 +1,6 @@
+{
+  "apiBaseUrl": "http://localhost:8080",
+  "version": "2.4.0",
+  "defaultEventId": "1",
+  "pollIntervalMs": 5000
+}

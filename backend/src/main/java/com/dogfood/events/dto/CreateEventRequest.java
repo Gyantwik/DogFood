@@ -1,0 +1,90 @@
+package com.dogfood.events.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import java.time.Instant;
+
+public class CreateEventRequest {
+
+    @NotBlank(message = "Event name is required")
+    private String name;
+
+    private String description;
+    private Instant submissionDeadline;
+    private Instant registrationStart;
+    private Instant registrationEnd;
+    private Instant eventStart;
+    private Instant eventEnd;
+    private Instant teamFormationStart;
+    private Instant teamFormationEnd;
+    private Instant submissionStart;
+    private Instant judgingStart;
+    private Instant judgingEnd;
+    private Instant votingStart;
+    private Instant votingEnd;
+    private Boolean votingEnabled;
+    private String votingAccessMode;
+    private Instant resultsPublishAt;
+    private String status;
+
+    public CreateEventRequest() {}
+
+    public CreateEventRequest(String name, String description, Instant submissionDeadline) {
+        this.name = name;
+        this.description = description;
+        this.submissionDeadline = submissionDeadline;
+    }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+
+    public Instant getSubmissionDeadline() { return submissionDeadline; }
+    public void setSubmissionDeadline(Instant submissionDeadline) { this.submissionDeadline = submissionDeadline; }
+
+    public Instant getRegistrationStart() { return registrationStart; }
+    public void setRegistrationStart(Instant registrationStart) { this.registrationStart = registrationStart; }
+
+    public Instant getRegistrationEnd() { return registrationEnd; }
+    public void setRegistrationEnd(Instant registrationEnd) { this.registrationEnd = registrationEnd; }
+
+    public Instant getEventStart() { return eventStart; }
+    public void setEventStart(Instant eventStart) { this.eventStart = eventStart; }
+
+    public Instant getEventEnd() { return eventEnd; }
+    public void setEventEnd(Instant eventEnd) { this.eventEnd = eventEnd; }
+
+    public Instant getTeamFormationStart() { return teamFormationStart; }
+    public void setTeamFormationStart(Instant teamFormationStart) { this.teamFormationStart = teamFormationStart; }
+
+    public Instant getTeamFormationEnd() { return teamFormationEnd; }
+    public void setTeamFormationEnd(Instant teamFormationEnd) { this.teamFormationEnd = teamFormationEnd; }
+
+    public Instant getSubmissionStart() { return submissionStart; }
+    public void setSubmissionStart(Instant submissionStart) { this.submissionStart = submissionStart; }
+
+    public Instant getJudgingStart() { return judgingStart; }
+    public void setJudgingStart(Instant judgingStart) { this.judgingStart = judgingStart; }
+
+    public Instant getJudgingEnd() { return judgingEnd; }
+    public void setJudgingEnd(Instant judgingEnd) { this.judgingEnd = judgingEnd; }
+
+    public Instant getVotingStart() { return votingStart; }
+    public void setVotingStart(Instant votingStart) { this.votingStart = votingStart; }
+
+    public Instant getVotingEnd() { return votingEnd; }
+    public void setVotingEnd(Instant votingEnd) { this.votingEnd = votingEnd; }
+
+    public Boolean getVotingEnabled() { return votingEnabled; }
+    public void setVotingEnabled(Boolean votingEnabled) { this.votingEnabled = votingEnabled; }
+
+    public String getVotingAccessMode() { return votingAccessMode; }
+    public void setVotingAccessMode(String votingAccessMode) { this.votingAccessMode = votingAccessMode; }
+
+    public Instant getResultsPublishAt() { return resultsPublishAt; }
+    public void setResultsPublishAt(Instant resultsPublishAt) { this.resultsPublishAt = resultsPublishAt; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+}

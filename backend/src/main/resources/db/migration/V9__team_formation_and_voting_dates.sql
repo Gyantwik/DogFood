@@ -1,0 +1,6 @@
+-- V9: Team Formation and Voting Lifecycle Dates
+ALTER TABLE events
+    ADD COLUMN IF NOT EXISTS team_formation_start TIMESTAMP WITH TIME ZONE,
+    ADD COLUMN IF NOT EXISTS team_formation_end TIMESTAMP WITH TIME ZONE,
+    ADD COLUMN IF NOT EXISTS voting_start TIMESTAMP WITH TIME ZONE,
+    ADD COLUMN IF NOT EXISTS voting_end TIMESTAMP WITH TIME ZONE;

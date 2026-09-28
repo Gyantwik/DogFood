@@ -1,0 +1,38 @@
+# example.dogfood.toml
+# Copy this file to `.dogfood.toml` at the repository root and fill in the test tokens.
+# Run the acceptance checker with:  python run.py .dogfood.toml
+
+[portal]
+# Where your portal is listening after `docker compose up`.
+base_url = "http://localhost:8080"
+
+[tiers]
+# The tiers claimed. Honest claims only.
+claimed = ["T1", "T2"]
+pitch = "Self-hostable hackathon submission and judging platform with rigorous RBAC, judge isolation, and z-score normalization."
+
+[auth]
+# Header credentials for each test role.
+# Obtain fresh bearer tokens via POST /api/auth/login using seeded test credentials:
+#   organizer:   organizer@dogfood.local   / organizer_pass123
+#   judge_a:     judge_a@dogfood.local     / judge_a_pass123
+#   judge_b:     judge_b@dogfood.local     / judge_b_pass123
+#   participant: participant@dogfood.local / participant_pass123
+organizer   = "Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJvcmdhbml6ZXJAZG9nZm9vZC5sb2NhbCIsInVzZXJuYW1lIjoib3JnYW5pemVyIiwiaWF0IjoxNzkwNTM4ODU1LCJleHAiOjE3OTgzMTQ4NTV9.JOP0yP4sJT-glPZa4XZ1ovZnuJ1N_ZgnNw1ftUFmU6duWUs6cHi4fmED1VtqasNYeS4tOOZN10lJe8kwgFvd1A"
+judge_a     = "Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIyIiwiZW1haWwiOiJqdWRnZV9hQGRvZ2Zvb2QubG9jYWwiLCJ1c2VybmFtZSI6Imp1ZGdlX2EiLCJpYXQiOjE3OTA1Mzg4NTUsImV4cCI6MTc5ODMxNDg1NX0.QXYa_CzxkrC5DjITGaJv-ri_3XsghZHABcxwEcEJ5jWV81DKnJG4l266ut3a6Hh9zip6mNQBAM-CyydAP4weqA"
+judge_b     = "Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiIzIiwiZW1haWwiOiJqdWRnZV9iQGRvZ2Zvb2QubG9jYWwiLCJ1c2VybmFtZSI6Imp1ZGdlX2IiLCJpYXQiOjE3OTA1Mzg4NTUsImV4cCI6MTc5ODMxNDg1NX0.DgCt74c9Pw-sJGHXzzOhSp7xOWoPtqFh0VrwbElKicUeepU5YmeIzWv6V-mWdWF18YJB1CEj2-BBANMW0yWqWQ"
+participant = "Authorization: Bearer eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiI0IiwiZW1haWwiOiJwYXJ0aWNpcGFudEBkb2dmb29kLmxvY2FsIiwidXNlcm5hbWUiOiJwYXJ0aWNpcGFudCIsImlhdCI6MTc5MDUzODg1NSwiZXhwIjoxNzk4MzE0ODU1fQ.1zoZ_ulieVgv7mbnBCucmC9ijYLE1rC3tAEBCJ18MbtSIafDUQzbUeODF3ZUQhrVWly0q2ohm8rL39QMPkNkyQ"
+
+[routes]
+# Route mappings matching your running portal.
+# Discover your fixture event ID via:
+#   curl -s http://localhost:8080/api/events | jq '.data[] | select(.name=="Sample Hack 2026") | .id'
+# (or in PowerShell: (Invoke-RestMethod http://localhost:8080/api/events).data | Where-Object { $_.name -eq "Sample Hack 2026" } | Select -ExpandProperty id)
+# and replace '1' below with the discovered number (e.g. 1).
+gallery      = "/api/events/1/submissions"
+submit       = "/api/events/1/submissions"
+judge_scores = "/api/judge/scores"
+# peer_scores is the url that would return judge_a's scores.
+# The checker visits it as judge_b, who should be refused (401 or 403).
+peer_scores  = "/api/judge/scores?judge=judge_a"
+csv_export   = "/api/events/1/export/scores"
