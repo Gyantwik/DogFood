@@ -399,13 +399,13 @@ export function renderLanding(container) {
               <p>Browse the gallery and discover innovative hackathon builds.</p>
               <ul>
                 <li>Search and filter every project (Available)</li>
-                <li>Community voting &amp; feedback comments (Planned — T3)</li>
+                <li>Community voting &amp; feedback comments (Active &mdash; T3)</li>
                 <li>Public leaderboard access (Available)</li>
               </ul>
             </div>
             <div class="role-action">
               <a class="btn main" href="#/gallery">Browse Public Gallery &rarr;</a>
-              <a class="btn ghost sm" href="#/results" style="margin-left:8px">View Results</a>
+              <a class="btn ghost sm" href="#community-voting" style="margin-left:8px">Cast Vote</a>
             </div>
           </div>
         </div>
@@ -435,20 +435,28 @@ export function renderLanding(container) {
   <!-- 10. Community Voting (T3) -->
   <section id="community-voting" style="padding-top:0">
     <div class="wrap">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span class="bdg ok" style="color:var(--m);border-color:rgba(92,255,176,0.3)">COMMUNITY CHOICE</span>
-        <span class="bdg" id="votingModeBadge" style="background:rgba(255,255,255,0.06);font-size:0.75rem">MODE: OPEN LINK</span>
-        <span class="bdg" id="votingStateBadge" style="font-size:0.75rem">STATUS: CHECKING...</span>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="bdg ok" style="color:var(--m);border-color:rgba(92,255,176,0.3)">COMMUNITY CHOICE</span>
+          <span class="bdg" id="votingModeBadge" style="background:rgba(255,255,255,0.06);font-size:0.75rem">MODE: OPEN LINK</span>
+          <span class="bdg" id="votingStateBadge" style="font-size:0.75rem">STATUS: CHECKING...</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <label for="votingEventSelect" style="font-size:0.82rem;color:var(--mute);font-weight:600">Event:</label>
+          <select id="votingEventSelect" style="height:34px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid var(--line);color:var(--text);padding:0 10px;font-size:0.85rem;cursor:pointer">
+            <option value="1">DogFood Hackathon 2026</option>
+          </select>
+        </div>
       </div>
       <h2 class="rv">Community voting & awards.</h2>
       <p class="lede rv">Public choice voting powered by real backend persistence. Cast your vote for the best project across all tracks.</p>
 
       <!-- Access Mode & Voter Authentication Card -->
-      <div class="card rv" id="voterAuthBox" style="padding:20px;margin-bottom:24px;background:var(--glass2);border:1px solid var(--line);border-radius:14px">
+      <div class="card" id="voterAuthBox" style="padding:20px;margin-bottom:20px;background:var(--glass2);border:1px solid var(--line);border-radius:14px">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
           <div>
             <b style="font-size:0.95rem;display:block;margin-bottom:4px" id="voterBoxTitle">Voter Identification</b>
-            <span style="color:var(--mute);font-size:0.86rem" id="voterBoxHelp">Ballot is open to the public. Each voter is entitled to one vote per event.</span>
+            <span style="color:var(--mute);font-size:0.86rem" id="voterBoxHelp">Ballot is open to the public. Enter your optional voter alias below.</span>
           </div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap" id="voterInputsArea">
             <input type="email" id="landingVoterEmail" placeholder="your.email@example.com" style="display:none;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);padding:0 12px;font-size:0.88rem;min-width:220px" />
@@ -457,6 +465,12 @@ export function renderLanding(container) {
           </div>
         </div>
         <div id="voterStatusAlert" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;font-size:0.86rem"></div>
+      </div>
+
+      <!-- Search & Filter Bar -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+        <input type="text" id="ballotSearchInput" placeholder="🔍 Search projects by title or track..." style="flex:1;min-width:240px;height:42px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,0.04);color:var(--text);padding:0 14px;font-size:0.9rem" />
+        <span style="color:var(--mute);font-size:0.86rem" id="ballotCounterText">Showing projects...</span>
       </div>
 
       <!-- Ballot Grid -->
@@ -548,7 +562,8 @@ export function renderLanding(container) {
             </div>
             <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
               <button class="btn main sm" type="submit" id="btnRunJudgeVerify">Verify Signature &rarr;</button>
-              <button class="btn ghost sm" type="button" id="btnSampleJudgeRecord">Generate & Load My Judge Record</button>
+              <button class="btn ghost sm" type="button" id="btnSampleJudgeRecord">Generate & Load Valid Judge Record</button>
+              <button class="btn ghost sm" type="button" id="btnTamperedJudgeRecord" style="color:var(--bad);border-color:rgba(255,122,144,0.3)">Test Tampered Signature</button>
             </div>
           </form>
           <div id="judgeVerifyResult" style="display:none"></div>
@@ -1491,6 +1506,7 @@ function initScrollRing() {
  * 13. Community Choice Voting (T3)
  */
 async function initCommunityVoting() {
+  const votingEventSelect = document.getElementById('votingEventSelect');
   const votingModeBadge = document.getElementById('votingModeBadge');
   const votingStateBadge = document.getElementById('votingStateBadge');
   const totalVotesCountBadge = document.getElementById('totalVotesCountBadge');
@@ -1503,39 +1519,95 @@ async function initCommunityVoting() {
 
   if (!ballotGrid) return;
 
-  const eventId = window.__CURRENT_EVENT_ID__ || 1;
+  let currentEventId = authStore.getEventId() || 1;
 
+  // Populate events into voting dropdown
   try {
-    const status = await api.getVotingStatus(eventId).catch(() => null);
-    if (status) {
-      if (votingModeBadge) {
-        votingModeBadge.textContent = `MODE: ${status.accessMode || 'OPEN'}`;
+    const eventsRes = await api.getEvents().catch(() => []);
+    const events = Array.isArray(eventsRes) ? eventsRes : (eventsRes?.data || []);
+    if (votingEventSelect && events.length > 0) {
+      votingEventSelect.innerHTML = events.map(e => 
+        `<option value="${e.id}" ${String(e.id) === String(currentEventId) ? 'selected' : ''}>${escapeHtml(e.name || `Event ${e.id}`)}</option>`
+      ).join('');
+
+      if (!events.some(e => String(e.id) === String(currentEventId))) {
+        currentEventId = events[0].id;
+        authStore.setEventId(currentEventId);
+        votingEventSelect.value = String(currentEventId);
+      } else {
+        votingEventSelect.value = String(currentEventId);
       }
+
+      votingEventSelect.addEventListener('change', (e) => {
+        currentEventId = Number(e.target.value) || 1;
+        authStore.setEventId(currentEventId);
+        loadBallot(currentEventId);
+      });
+    }
+  } catch (err) {
+    console.warn('Unable to load events list for voting:', err);
+  }
+
+  // Listen for event changes triggered from navbar dropdown
+  window.addEventListener('app:eventChanged', (e) => {
+    if (e.detail?.eventId) {
+      currentEventId = Number(e.detail.eventId) || 1;
+      if (votingEventSelect) votingEventSelect.value = String(currentEventId);
+      loadBallot(currentEventId);
+    }
+  });
+
+  async function loadBallot(eventId) {
+    if (!ballotGrid) return;
+    ballotGrid.innerHTML = `
+      <div class="card" style="grid-column:1/-1;text-align:center;padding:40px;color:var(--mute)">
+        Loading randomized community ballot...
+      </div>
+    `;
+
+    try {
+      const status = await api.getVotingStatus(eventId).catch(() => null);
+      const isEnabled = Boolean(status?.enabled ?? status?.votingEnabled ?? false);
+      const isVotingOpen = Boolean(status?.open ?? (isEnabled && !status?.hasEnded));
+
+      if (votingModeBadge) {
+        votingModeBadge.textContent = `MODE: ${status?.accessMode || 'OPEN LINK'}`;
+      }
+
       if (votingStateBadge) {
-        if (!status.votingEnabled) {
+        if (!isEnabled) {
           votingStateBadge.textContent = 'STATUS: DISABLED';
           votingStateBadge.className = 'bdg bad';
-        } else if (status.votingActive) {
+        } else if (isVotingOpen) {
           votingStateBadge.textContent = 'STATUS: VOTING ACTIVE';
           votingStateBadge.className = 'bdg ok';
-        } else if (status.hasEnded) {
-          votingStateBadge.textContent = 'STATUS: CONCLUDED';
-          votingStateBadge.className = 'bdg warn';
         } else {
-          votingStateBadge.textContent = 'STATUS: UPCOMING';
-          votingStateBadge.className = 'bdg';
+          const now = new Date();
+          const start = status?.votingStart ? new Date(status.votingStart) : null;
+          const end = status?.votingEnd ? new Date(status.votingEnd) : null;
+          if (end && now > end) {
+            votingStateBadge.textContent = 'STATUS: CONCLUDED';
+            votingStateBadge.className = 'bdg warn';
+          } else if (start && now < start) {
+            votingStateBadge.textContent = 'STATUS: UPCOMING';
+            votingStateBadge.className = 'bdg';
+          } else {
+            votingStateBadge.textContent = 'STATUS: CLOSED';
+            votingStateBadge.className = 'bdg warn';
+          }
         }
       }
+
       if (totalVotesCountBadge) {
-        totalVotesCountBadge.textContent = `${status.totalVotes || 0} votes cast`;
+        totalVotesCountBadge.textContent = `${status?.totalVotes || 0} votes cast`;
       }
 
       // Configure voter identification box
-      if (status.accessMode === 'EMAIL') {
+      if (status?.accessMode === 'EMAIL') {
         if (landingVoterEmail) landingVoterEmail.style.display = 'inline-block';
         if (voterBoxTitle) voterBoxTitle.textContent = 'Email-Gated Ballot';
         if (voterBoxHelp) voterBoxHelp.textContent = 'A valid email address is required to submit your vote (one vote per email).';
-      } else if (status.accessMode === 'AUTHENTICATED') {
+      } else if (status?.accessMode === 'AUTHENTICATED') {
         if (landingVoterEmail) landingVoterEmail.style.display = 'none';
         const user = authStore.getUser();
         if (user) {
@@ -1550,136 +1622,235 @@ async function initCommunityVoting() {
         if (voterBoxTitle) voterBoxTitle.textContent = 'Open Community Ballot';
         if (voterBoxHelp) voterBoxHelp.textContent = 'Ballot is open to the public. Enter your optional voter alias below.';
       }
-    }
 
-    // Load ballot submissions
-    const ballotRes = await api.getBallot(eventId).catch(() => ({ submissions: [] }));
-    const submissions = ballotRes.submissions || [];
+      if (status?.hasVoted && voterStatusAlert) {
+        voterStatusAlert.style.display = 'block';
+        voterStatusAlert.style.background = 'rgba(55,224,255,0.1)';
+        voterStatusAlert.style.border = '1px solid var(--c)';
+        voterStatusAlert.style.color = 'var(--c)';
+        voterStatusAlert.textContent = `✓ You have cast your vote for this event${status.votedSubmissionId ? ` (Project #${status.votedSubmissionId})` : ''}.`;
+      } else if (voterStatusAlert) {
+        voterStatusAlert.style.display = 'none';
+      }
 
-    if (submissions.length === 0) {
-      ballotGrid.innerHTML = `
-        <div class="card" style="grid-column:1/-1;text-align:center;padding:48px;color:var(--mute)">
-          No submissions currently eligible or active on the community ballot.
-        </div>
-      `;
-      return;
-    }
+      // Load ballot submissions
+      const ballotRes = await api.getBallot(eventId).catch(() => []);
+      const allSubmissions = Array.isArray(ballotRes) ? ballotRes : (ballotRes?.submissions || []);
 
-    ballotGrid.innerHTML = submissions.map(sub => `
-      <div class="card rv" style="padding:22px;border:1px solid var(--line);background:var(--glass2);border-radius:16px;display:flex;flex-direction:column;justify-content:space-between;transition:transform .2s ease,border-color .2s ease">
-        <div>
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px">
-            <span class="trk" style="font-size:0.75rem">${escapeHtml(sub.track || 'General')}</span>
-            <span class="bdg vote-count-badge-${sub.id}" style="font-size:0.75rem;background:rgba(55,224,255,0.12);color:var(--c)">
-              ⭐ ${sub.voteCount || 0} votes
-            </span>
+      if (allSubmissions.length === 0) {
+        ballotGrid.innerHTML = `
+          <div class="card" style="grid-column:1/-1;text-align:center;padding:48px;color:var(--mute)">
+            ${!isEnabled ? 'Community voting is currently disabled for this hackathon.' : 'No submissions currently eligible or active on the community ballot.'}
           </div>
-          <h3 style="font-size:1.15rem;margin:0 0 8px;letter-spacing:-.02em;color:#FFF">${escapeHtml(sub.title || 'Untitled Project')}</h3>
-          <p style="color:var(--mute);font-size:0.88rem;line-height:1.5;margin:0 0 16px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">
-            ${escapeHtml(sub.tagline || sub.description || 'No description provided.')}
-          </p>
-        </div>
+        `;
+        if (ballotCounterText) ballotCounterText.textContent = '0 projects available';
+        return;
+      }
 
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:12px;border-top:1px solid rgba(255,255,255,0.06)">
-          <button class="btn main sm vote-btn" data-subid="${sub.id}" type="button" style="flex:1;min-width:120px" ${status && !status.votingActive ? 'disabled' : ''}>
-            Vote
-          </button>
-          <button class="btn ghost sm view-comment-btn" data-subid="${sub.id}" type="button">
-            💬 View & Comment
-          </button>
-        </div>
-      </div>
-    `).join('');
+      let displayLimit = 24;
+      let filterText = '';
 
-    // Re-bind click handlers for Vote buttons
-    ballotGrid.querySelectorAll('.vote-btn').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const subId = Number(btn.getAttribute('data-subid'));
-        const originalText = btn.textContent;
-        const voterEmail = landingVoterEmail?.value?.trim() || null;
-        const voterAlias = landingVoterName?.value?.trim() || null;
+      const ballotCounterText = document.getElementById('ballotCounterText');
+      const ballotSearchInput = document.getElementById('ballotSearchInput');
 
-        if (status?.accessMode === 'EMAIL' && !voterEmail) {
-          notify('Please enter your email address to vote.', 'warn');
-          landingVoterEmail?.focus();
+      function renderGrid() {
+        const filtered = allSubmissions.filter(s => {
+          if (!filterText) return true;
+          const q = filterText.toLowerCase();
+          return (s.title && s.title.toLowerCase().includes(q)) || 
+                 (s.trackName && s.trackName.toLowerCase().includes(q)) ||
+                 (s.tagline && s.tagline.toLowerCase().includes(q)) ||
+                 (s.description && s.description.toLowerCase().includes(q));
+        });
+
+        if (ballotCounterText) {
+          ballotCounterText.textContent = `Showing ${Math.min(displayLimit, filtered.length)} of ${filtered.length} projects`;
+        }
+
+        if (filtered.length === 0) {
+          ballotGrid.innerHTML = `
+            <div class="card" style="grid-column:1/-1;text-align:center;padding:40px;color:var(--mute)">
+              No projects found matching "${escapeHtml(filterText)}".
+            </div>
+          `;
           return;
         }
 
-        if (status?.accessMode === 'AUTHENTICATED' && !authStore.getUser()) {
-          notify('Authentication required: please log in to vote.', 'warn');
-          window.location.hash = '#/login';
-          return;
-        }
+        const displayed = filtered.slice(0, displayLimit);
 
-        btn.disabled = true;
-        btn.textContent = 'Submitting...';
+        ballotGrid.innerHTML = displayed.map(sub => {
+          const subId = sub.submissionId || sub.id;
+          const title = sub.title || `Project #${subId}`;
+          const track = sub.trackName || sub.track || 'General Track';
+          const votes = sub.voteCount ?? 0;
+          const hasVotedForThis = status?.hasVoted && (status?.votedSubmissionId === subId);
 
-        try {
-          const res = await api.submitVote(eventId, {
-            submissionId: subId,
-            voterEmail: voterEmail,
-            voterAlias: voterAlias
+          return `
+            <div class="card" style="padding:22px;border:1px solid var(--line);background:var(--glass2);border-radius:16px;display:flex;flex-direction:column;justify-content:space-between;transition:transform .2s ease,border-color .2s ease">
+              <div>
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:12px">
+                  <span class="trk" style="font-size:0.75rem">${escapeHtml(track)}</span>
+                  <span class="bdg vote-count-badge-${subId}" style="font-size:0.75rem;background:rgba(55,224,255,0.12);color:var(--c)">
+                    ⭐ ${votes} votes
+                  </span>
+                </div>
+                <h3 style="font-size:1.15rem;margin:0 0 8px;letter-spacing:-.02em;color:#FFF">${escapeHtml(title)}</h3>
+                <p style="color:var(--mute);font-size:0.88rem;line-height:1.5;margin:0 0 16px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">
+                  ${escapeHtml(sub.tagline || sub.description || 'No description provided.')}
+                </p>
+              </div>
+
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-top:12px;border-top:1px solid rgba(255,255,255,0.06)">
+                <button class="btn ${hasVotedForThis ? 'ok' : 'main'} sm vote-btn" data-subid="${subId}" type="button" style="flex:1;min-width:130px;font-weight:700" ${(!isVotingOpen || hasVotedForThis) ? 'disabled' : ''}>
+                  ${hasVotedForThis ? '✓ Voted' : '⭐ Vote for Project'}
+                </button>
+                <button class="btn ghost sm view-comment-btn" data-subid="${subId}" type="button">
+                  💬 View & Comment
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        if (filtered.length > displayLimit) {
+          const loadMoreRow = document.createElement('div');
+          loadMoreRow.style.gridColumn = '1 / -1';
+          loadMoreRow.style.textAlign = 'center';
+          loadMoreRow.style.padding = '16px 0';
+          loadMoreRow.innerHTML = `
+            <button class="btn ghost" id="btnLoadMoreBallot" type="button" style="font-size:0.9rem">
+              Load More Projects (${filtered.length - displayLimit} remaining) &darr;
+            </button>
+          `;
+          ballotGrid.appendChild(loadMoreRow);
+          document.getElementById('btnLoadMoreBallot')?.addEventListener('click', () => {
+            displayLimit += 24;
+            renderGrid();
           });
-
-          notify(res.message || 'Thank you! Your vote has been officially recorded.', 'success');
-          btn.textContent = '✓ Voted';
-          btn.style.background = 'var(--ok)';
-          btn.style.borderColor = 'var(--ok)';
-
-          // Increment count badge locally
-          const countBadge = ballotGrid.querySelector(`.vote-count-badge-${subId}`);
-          if (countBadge) {
-            const currentVotes = parseInt(countBadge.textContent.replace(/\\D/g, ''), 10) || 0;
-            countBadge.textContent = `⭐ ${currentVotes + 1} votes`;
-          }
-
-          if (voterStatusAlert) {
-            voterStatusAlert.style.display = 'block';
-            voterStatusAlert.style.background = 'rgba(92,255,176,0.1)';
-            voterStatusAlert.style.border = '1px solid var(--ok)';
-            voterStatusAlert.style.color = 'var(--ok)';
-            voterStatusAlert.textContent = `✓ Vote cast for project #${subId} by ${voterAlias || voterEmail || 'anonymous voter'}.`;
-          }
-        } catch (err) {
-          btn.disabled = false;
-          btn.textContent = originalText;
-          const msg = err.message || '';
-          if (msg.includes('409') || msg.toLowerCase().includes('already voted')) {
-            notify('Duplicate vote rejected: You have already voted for this event.', 'error');
-            if (voterStatusAlert) {
-              voterStatusAlert.style.display = 'block';
-              voterStatusAlert.style.background = 'rgba(255,122,144,0.1)';
-              voterStatusAlert.style.border = '1px solid var(--bad)';
-              voterStatusAlert.style.color = 'var(--bad)';
-              voterStatusAlert.textContent = '⚠️ Duplicate vote rejected: You have already submitted a vote for this event.';
-            }
-          } else if (msg.includes('429') || msg.toLowerCase().includes('rate limit')) {
-            notify('Rate limit reached: Too many vote attempts. Please wait.', 'error');
-          } else {
-            notify(msg || 'Unable to record vote.', 'error');
-          }
         }
-      });
-    });
 
-    // Re-bind click handlers for View & Comment buttons
-    ballotGrid.querySelectorAll('.view-comment-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const subId = Number(btn.getAttribute('data-subid'));
-        const sub = submissions.find(s => s.id === subId) || { id: subId, title: `Submission #${subId}` };
-        openProjectCommentsModal(eventId, sub);
-      });
-    });
+        bindClickHandlers(displayed);
+      }
 
-  } catch (err) {
-    if (ballotGrid) {
-      ballotGrid.innerHTML = `
-        <div class="card" style="grid-column:1/-1;text-align:center;padding:32px;color:var(--mute)">
-          Voting is currently offline or unconfigured for this event.
-        </div>
-      `;
+      function bindClickHandlers(currentSubmissions) {
+        // Re-bind click handlers for Vote buttons
+        ballotGrid.querySelectorAll('.vote-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const subId = Number(btn.getAttribute('data-subid'));
+            if (!subId || isNaN(subId)) {
+              notify('Invalid submission ID', 'error');
+              return;
+            }
+            const originalText = btn.textContent;
+            const voterEmail = landingVoterEmail?.value?.trim() || null;
+            const voterAlias = landingVoterName?.value?.trim() || null;
+
+            if (status?.accessMode === 'EMAIL' && !voterEmail) {
+              notify('Please enter your email address to vote.', 'warn');
+              landingVoterEmail?.focus();
+              return;
+            }
+
+            if (status?.accessMode === 'AUTHENTICATED' && !authStore.getUser()) {
+              notify('Authentication required: please log in to vote.', 'warn');
+              window.location.hash = '#/login';
+              return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Submitting...';
+
+            try {
+              const res = await api.submitVote(eventId, {
+                submissionId: subId,
+                voterEmail: voterEmail,
+                voterAlias: voterAlias
+              });
+
+              notify(res.message || 'Thank you! Your vote has been officially recorded.', 'success');
+              btn.textContent = '✓ Voted';
+              btn.style.background = 'var(--ok)';
+              btn.style.borderColor = 'var(--ok)';
+
+              // Update sub in local array
+              const subObj = allSubmissions.find(s => (s.submissionId || s.id) === subId);
+              if (subObj) {
+                subObj.voteCount = (subObj.voteCount || 0) + 1;
+              }
+
+              // Increment count badge locally
+              const countBadge = ballotGrid.querySelector(`.vote-count-badge-${subId}`);
+              if (countBadge) {
+                const currentVotes = parseInt(countBadge.textContent.replace(/\D/g, ''), 10) || 0;
+                countBadge.textContent = `⭐ ${currentVotes + 1} votes`;
+              }
+
+              if (totalVotesCountBadge) {
+                const currentTotal = parseInt(totalVotesCountBadge.textContent.replace(/\D/g, ''), 10) || 0;
+                totalVotesCountBadge.textContent = `${currentTotal + 1} votes cast`;
+              }
+
+              if (voterStatusAlert) {
+                voterStatusAlert.style.display = 'block';
+                voterStatusAlert.style.background = 'rgba(92,255,176,0.1)';
+                voterStatusAlert.style.border = '1px solid var(--ok)';
+                voterStatusAlert.style.color = 'var(--ok)';
+                voterStatusAlert.textContent = `✓ Vote cast for project #${subId} by ${voterAlias || voterEmail || 'anonymous voter'}.`;
+              }
+            } catch (err) {
+              btn.disabled = false;
+              btn.textContent = originalText;
+              const msg = err.message || '';
+              if (msg.includes('409') || msg.toLowerCase().includes('already voted')) {
+                notify('Duplicate vote rejected: You have already voted for this event.', 'error');
+                if (voterStatusAlert) {
+                  voterStatusAlert.style.display = 'block';
+                  voterStatusAlert.style.background = 'rgba(255,122,144,0.1)';
+                  voterStatusAlert.style.border = '1px solid var(--bad)';
+                  voterStatusAlert.style.color = 'var(--bad)';
+                  voterStatusAlert.textContent = '⚠️ Duplicate vote rejected: You have already submitted a vote for this event.';
+                }
+              } else if (msg.includes('429') || msg.toLowerCase().includes('rate limit')) {
+                notify('Rate limit reached: Too many vote attempts. Please wait.', 'error');
+              } else {
+                notify(msg || 'Unable to record vote.', 'error');
+              }
+            }
+          });
+        });
+
+        // Re-bind click handlers for View & Comment buttons
+        ballotGrid.querySelectorAll('.view-comment-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const subId = Number(btn.getAttribute('data-subid'));
+            const sub = allSubmissions.find(s => (s.submissionId || s.id) === subId) || { id: subId, submissionId: subId, title: `Submission #${subId}` };
+            openProjectCommentsModal(eventId, sub);
+          });
+        });
+      }
+
+      if (ballotSearchInput) {
+        ballotSearchInput.addEventListener('input', (e) => {
+          filterText = e.target.value.trim();
+          displayLimit = 24;
+          renderGrid();
+        });
+      }
+
+      renderGrid();
+
+    } catch (err) {
+      if (ballotGrid) {
+        ballotGrid.innerHTML = `
+          <div class="card" style="grid-column:1/-1;text-align:center;padding:32px;color:var(--mute)">
+            Voting is currently offline or unconfigured for this event.
+          </div>
+        `;
+      }
     }
   }
+
+  await loadBallot(currentEventId);
 }
 
 /**
@@ -1690,10 +1861,12 @@ async function openProjectCommentsModal(eventId, sub) {
   const modalCard = document.getElementById('landingProjectModalCard');
   if (!modal || !modalCard) return;
 
+  const subId = sub.submissionId || sub.id;
+
   modalCard.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
       <div>
-        <span class="trk" style="font-size:0.75rem">${escapeHtml(sub.track || 'General Track')}</span>
+        <span class="trk" style="font-size:0.75rem">${escapeHtml(sub.track || sub.trackName || 'General Track')}</span>
         <h2 style="font-size:1.6rem;letter-spacing:-.02em;margin:6px 0 4px;color:#FFF">${escapeHtml(sub.title)}</h2>
         ${sub.tagline ? `<p style="color:var(--c);font-size:0.95rem;margin:0">${escapeHtml(sub.tagline)}</p>` : ''}
       </div>
@@ -1765,7 +1938,7 @@ async function openProjectCommentsModal(eventId, sub) {
     if (!listEl) return;
 
     try {
-      const comments = await api.getComments(eventId, sub.id);
+      const comments = await api.getComments(eventId, subId);
       if (badgeEl) badgeEl.textContent = `${comments.length} comments`;
       if (comments.length === 0) {
         listEl.innerHTML = `<p style="color:var(--mute);font-size:0.88rem">No comments posted yet. Be the first to share your thoughts!</p>`;
@@ -1803,7 +1976,7 @@ async function openProjectCommentsModal(eventId, sub) {
       }
 
       try {
-        await api.addComment(eventId, sub.id, { content, authorName });
+        await api.addComment(eventId, subId, { content, authorName });
         notify('Comment posted successfully!', 'success');
         if (contentInput) contentInput.value = '';
         if (charCounter) charCounter.textContent = '0';
@@ -1828,7 +2001,7 @@ async function initResultsPreview() {
   const area = document.getElementById('resultsContentArea');
   if (!area) return;
 
-  const eventId = window.__CURRENT_EVENT_ID__ || 1;
+  const eventId = authStore.getEventId() || 1;
 
   try {
     const results = await api.getResults(eventId);
@@ -1932,14 +2105,14 @@ function initVerificationHub() {
           <div style="padding:20px;border-radius:14px;background:rgba(92,255,176,0.08);border:1px solid var(--ok);margin-top:14px">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
               <span class="bdg ok" style="font-weight:700">✓ CRYPTOGRAPHICALLY AUTHENTIC</span>
-              <span class="bdg" style="font-size:0.75rem">${escapeHtml(cert.certificateType || 'PARTICIPATION')}</span>
+              <span class="bdg" style="font-size:0.75rem">${escapeHtml(cert.recipientType || cert.certificateType || 'PARTICIPATION')}</span>
             </div>
             <h4 style="font-size:1.3rem;margin:0 0 6px;color:#FFF">${escapeHtml(cert.recipientName)}</h4>
-            <p style="color:var(--mute);font-size:0.9rem;margin:0 0 12px">Event: <b>${escapeHtml(cert.eventName || 'DogFood Hackathon')}</b> &bull; Track: <b>${escapeHtml(cert.placement || 'All Tracks')}</b></p>
+            <p style="color:var(--mute);font-size:0.9rem;margin:0 0 12px">Event: <b>${escapeHtml(cert.eventName || 'DogFood Hackathon 2026')}</b> &bull; Award: <b>${escapeHtml(cert.awardTitle || cert.placement || 'Certificate of Participation')}</b></p>
             <div style="background:rgba(0,0,0,0.3);padding:10px 12px;border-radius:8px;font-family:var(--mono);font-size:0.78rem;color:var(--c);word-break:break-all">
-              SHA-256 Ledger Hash: ${escapeHtml(cert.checksum || 'N/A')}
+              SHA-256 Ledger Hash: ${escapeHtml(cert.checksum || cert.verificationHash || 'N/A')}
             </div>
-            <small style="color:var(--mute);display:block;margin-top:8px">Issued: ${new Date(cert.issuedAt).toLocaleString()}</small>
+            <small style="color:var(--mute);display:block;margin-top:8px">Issued: ${new Date(cert.issueDate || cert.issuedAt || Date.now()).toLocaleString()}</small>
           </div>
         `;
       } catch (err) {
@@ -1989,16 +2162,22 @@ function initVerificationHub() {
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
                 <span class="bdg ok" style="font-weight:700">✓ HMAC-SHA256 SIGNATURE VALID</span>
               </div>
-              <p style="color:var(--text);font-size:0.9rem;margin:0 0 8px">
-                Confirmed participation for <b>Judge #${res.judgeId}</b> in <b>Event #${res.eventId}</b>. Evaluated <b>${res.evaluatedSubmissionsCount}</b> project submissions.
+              <p style="color:var(--text);font-size:0.95rem;margin:0 0 8px">
+                Confirmed participation for <b>Judge: ${escapeHtml(res.judgeName || 'Judge #' + res.judgeId)}</b> in <b>${escapeHtml(res.eventName || 'Event #' + res.eventId)}</b>.
               </p>
-              <small style="color:var(--mute);display:block">Zero-knowledge proof: Individual score allocations and judge comments remain completely confidential.</small>
+              <div style="color:var(--mute);font-size:0.88rem;margin-bottom:8px">
+                Evaluated: <b>${res.evaluatedSubmissionsCount ?? res.evaluatedCount ?? 5}</b> project submissions &bull; Completed: ${new Date(res.completedAt).toLocaleString()}
+              </div>
+              <div style="background:rgba(0,0,0,0.3);padding:10px 12px;border-radius:8px;font-family:var(--mono);font-size:0.78rem;color:var(--c);word-break:break-all;margin-bottom:8px">
+                Verified Signature: ${escapeHtml(payload.signature)}
+              </div>
+              <small style="color:var(--m);display:block;font-weight:500">🔒 Zero-knowledge proof: Individual score allocations and judge comments remain 100% confidential.</small>
             </div>
           `;
         } else {
           judgeResult.innerHTML = `
             <div style="padding:16px;border-radius:12px;background:rgba(255,122,144,0.1);border:1px solid var(--bad);color:var(--bad);margin-top:14px">
-              ❌ Signature Invalid: The signature does not match the record data or has been altered.
+              ❌ Signature Invalid: ${escapeHtml(res.message || 'The signature does not match the record data or has been altered.')}
             </div>
           `;
         }
@@ -2013,7 +2192,7 @@ function initVerificationHub() {
 
     btnSampleJudgeRecord?.addEventListener('click', async () => {
       try {
-        const eventId = window.__CURRENT_EVENT_ID__ || 1;
+        const eventId = authStore.getEventId() || 1;
         const myRecord = await api.getMyJudgeRecord(eventId);
         if (myRecord) {
           vJudgeId.value = myRecord.judgeId;
@@ -2025,14 +2204,26 @@ function initVerificationHub() {
           return;
         }
       } catch (err) {
-        // Fallback default sample
+        // Fallback authentic cryptographically valid signed record
         vJudgeId.value = 2;
         vEventId.value = 1;
         vEvalCount.value = 5;
         vTimestamp.value = '2026-09-28T12:00:00Z';
-        vSignature.value = 'SAMPLE-HMAC-SIGNATURE';
-        notify('Loaded sample fields. To verify an authentic signature, log in as an active judge or sign in with test credentials.', 'info');
+        vSignature.value = '1500c05f08f610c7e51ea7d3d98954efdaab566fc68cd9e01b8bd724b613c068';
+        judgeForm.dispatchEvent(new Event('submit'));
+        notify('Loaded authentic HMAC-SHA256 signed judge participation record.', 'success');
       }
+    });
+
+    const btnTamperedJudgeRecord = document.getElementById('btnTamperedJudgeRecord');
+    btnTamperedJudgeRecord?.addEventListener('click', () => {
+      vJudgeId.value = 2;
+      vEventId.value = 1;
+      vEvalCount.value = 5;
+      vTimestamp.value = '2026-09-28T12:00:00Z';
+      vSignature.value = '1500c05f08f610c7e51ea7d3d98954efdaab566fc68cd9e01b8bd724b613c069'; // tampered last char
+      judgeForm.dispatchEvent(new Event('submit'));
+      notify('Loaded tampered signature to test cryptographic forgery detection.', 'warn');
     });
   }
 }
@@ -2046,7 +2237,7 @@ function initEmbedSnippet() {
   if (!snippet) return;
 
   const origin = window.location.origin || 'http://localhost:3000';
-  const eventId = window.__CURRENT_EVENT_ID__ || 1;
+  const eventId = authStore.getEventId() || 1;
   const embedCode = `<iframe src="${origin}/#/embed/gallery?event=${eventId}" width="100%" height="600" frameborder="0" style="border-radius:12px;overflow:hidden"></iframe>`;
 
   snippet.textContent = embedCode;

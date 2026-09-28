@@ -81,9 +81,11 @@ async function initEventSelectors() {
       
       // Refresh current route to apply new event context across all in-app routes
       const hash = window.location.hash || '#/';
-      const isPublicLanding = hash === '#/' || hash === '' || hash === '#top' || hash.startsWith('#steps') || hash.startsWith('#seats') || hash.startsWith('#lab') || hash.startsWith('#selfhost') || hash.startsWith('#faq') || hash.startsWith('#story') || hash.startsWith('#core') || hash.startsWith('#features') || hash.startsWith('#gallery-section') || hash.startsWith('#end');
+      const isPublicLanding = hash === '#/' || hash === '' || hash === '#top' || hash.startsWith('#steps') || hash.startsWith('#seats') || hash.startsWith('#lab') || hash.startsWith('#selfhost') || hash.startsWith('#faq') || hash.startsWith('#story') || hash.startsWith('#core') || hash.startsWith('#features') || hash.startsWith('#gallery-section') || hash.startsWith('#end') || hash.startsWith('#community-voting') || hash.startsWith('#verification-hub') || hash.startsWith('#embed-snippet');
       if (!isPublicLanding) {
         window.dispatchEvent(new HashChangeEvent('hashchange'));
+      } else {
+        window.dispatchEvent(new CustomEvent('app:eventChanged', { detail: { eventId: selectedId } }));
       }
       updateMobileNavUI(authStore.getSession());
     };
@@ -215,8 +217,12 @@ function updateNavAuthUI(session) {
   const userRoleBadge = document.getElementById('navUserRoleBadge');
   if (!authNavBtn) return;
 
-  if (session && session.token) {
-    authNavBtn.innerHTML = `<span>Sign Out (${escapeHtml(session.name.split(' ')[0])})</span>`;
+  const isAuth = !!(session && session.token);
+  document.body.classList.toggle('authenticated', isAuth);
+
+  if (isAuth) {
+    authNavBtn.innerHTML = `<span>Sign Out</span>`;
+    authNavBtn.title = `Signed in as ${escapeHtml(session.name || 'User')}`;
     authNavBtn.onclick = () => {
       authStore.clearSession();
       notify('Signed out successfully');
@@ -229,6 +235,7 @@ function updateNavAuthUI(session) {
     }
   } else {
     authNavBtn.innerHTML = `<span>Sign In</span>`;
+    authNavBtn.title = '';
     authNavBtn.onclick = () => {
       window.location.hash = '#/login';
     };
