@@ -137,6 +137,11 @@ public class WebhookService {
 
     @Transactional
     public WebhookDeliveryDto testDelivery(Long eventId, Long webhookId, Long userId) {
+        return testDelivery(eventId, webhookId, "test.ping", userId);
+    }
+
+    @Transactional
+    public WebhookDeliveryDto testDelivery(Long eventId, Long webhookId, String eventType, Long userId) {
         authorizationPolicy.requireEventRole(userId, eventId, RoleType.ORGANIZER);
         Webhook webhook = webhookRepository.findById(webhookId)
                 .orElseThrow(() -> new IllegalArgumentException("Webhook not found: " + webhookId));
@@ -144,19 +149,101 @@ public class WebhookService {
             throw new IllegalArgumentException("Webhook does not belong to this event");
         }
 
+        String actualEvent = (eventType != null && !eventType.isBlank()) ? eventType.trim() : "test.ping";
+
         Map<String, Object> envelope = new LinkedHashMap<>();
-        envelope.put("event", "test.ping");
+        envelope.put("event", actualEvent);
         envelope.put("eventId", eventId);
         envelope.put("timestamp", Instant.now().toString());
-        envelope.put("data", Map.of("message", "This is a test webhook delivery from DogFood platform"));
+        envelope.put("data", buildSampleEventData(actualEvent, eventId));
 
         try {
             String payloadJson = objectMapper.writeValueAsString(envelope);
-            WebhookDelivery delivery = deliver(webhook, "test.ping", payloadJson);
+            WebhookDelivery delivery = deliver(webhook, actualEvent, payloadJson);
             return mapToDeliveryDto(delivery);
         } catch (Exception e) {
             throw new RuntimeException("Test delivery failed: " + e.getMessage(), e);
         }
+    }
+
+    @Transactional
+    public WebhookDeliveryDto retryDelivery(Long eventId, Long webhookId, Long deliveryId, Long userId) {
+        authorizationPolicy.requireEventRole(userId, eventId, RoleType.ORGANIZER);
+        Webhook webhook = webhookRepository.findById(webhookId)
+                .orElseThrow(() -> new IllegalArgumentException("Webhook not found: " + webhookId));
+        if (!webhook.getEventId().equals(eventId)) {
+            throw new IllegalArgumentException("Webhook does not belong to this event");
+        }
+
+        WebhookDelivery previous = deliveryRepository.findById(deliveryId)
+                .orElseThrow(() -> new IllegalArgumentException("Delivery not found: " + deliveryId));
+        if (!previous.getWebhookId().equals(webhookId)) {
+            throw new IllegalArgumentException("Delivery does not belong to this webhook");
+        }
+
+        // Re-deliver with fresh signature & timestamp
+        WebhookDelivery newDelivery = deliver(webhook, previous.getEventType(), previous.getPayload());
+        return mapToDeliveryDto(newDelivery);
+    }
+
+    private Map<String, Object> buildSampleEventData(String eventType, Long eventId) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        switch (eventType) {
+            case "submission.submitted":
+                data.put("submissionId", 101L);
+                data.put("title", "EcoTrack AI");
+                data.put("summary", "Real-time carbon footprint tracker powered by edge AI.");
+                data.put("teamId", 42L);
+                data.put("teamName", "GreenByte Collective");
+                data.put("track", "AI for Sustainability");
+                data.put("repoUrl", "https://github.com/greenbyte/ecotrack");
+                data.put("demoUrl", "https://ecotrack.ai");
+                data.put("submittedBy", Map.of("userId", 15L, "name", "Elena Rostova", "email", "elena@example.com"));
+                break;
+            case "vote.created":
+                data.put("voteId", 809L);
+                data.put("submissionId", 101L);
+                data.put("submissionTitle", "EcoTrack AI");
+                data.put("voterAlias", "CyberEagle42");
+                data.put("category", "People's Choice");
+                data.put("timestamp", Instant.now().toString());
+                break;
+            case "score.submitted":
+                data.put("evaluationId", 304L);
+                data.put("submissionId", 101L);
+                data.put("submissionTitle", "EcoTrack AI");
+                data.put("judgeId", 7L);
+                data.put("judgeName", "Dr. Aris Vance");
+                data.put("totalScore", 47.0);
+                data.put("rubricScores", Map.of(
+                        "Innovation", 9.5,
+                        "Technical Execution", 9.5,
+                        "Impact", 9.0,
+                        "Design & UX", 9.5,
+                        "Presentation", 9.5
+                ));
+                data.put("feedback", "Outstanding presentation, clean code repository, and proven impact metric.");
+                break;
+            case "results.published":
+                data.put("eventId", eventId);
+                data.put("status", "PUBLISHED");
+                data.put("publishedAt", Instant.now().toString());
+                data.put("podium", List.of(
+                        Map.of("rank", 1, "title", "EcoTrack AI", "score", 47.0),
+                        Map.of("rank", 2, "title", "QuantumShield", "score", 45.5),
+                        Map.of("rank", 3, "title", "OmniMesh", "score", 44.0)
+                ));
+                data.put("totalParticipants", 128);
+                data.put("totalSubmissions", 34);
+                break;
+            case "test.ping":
+            default:
+                data.put("message", "This is a verified test webhook delivery from DogFood platform");
+                data.put("pingId", UUID.randomUUID().toString());
+                data.put("environment", "DogFood Hackathon Engine v1.1");
+                break;
+        }
+        return data;
     }
 
     private WebhookDelivery deliver(Webhook webhook, String eventType, String payloadJson) {

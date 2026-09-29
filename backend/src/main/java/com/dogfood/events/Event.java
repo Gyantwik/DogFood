@@ -62,6 +62,9 @@ public class Event {
     @Column(name = "voting_access_mode")
     private String votingAccessMode = "OPEN";
 
+    @Column(name = "pairwise_judging_enabled")
+    private Boolean pairwiseJudgingEnabled = false;
+
     @Column(name = "results_publish_at")
     private Instant resultsPublishAt;
 
@@ -134,6 +137,9 @@ public class Event {
 
     public String getVotingAccessMode() { return votingAccessMode; }
     public void setVotingAccessMode(String votingAccessMode) { this.votingAccessMode = votingAccessMode; }
+
+    public Boolean getPairwiseJudgingEnabled() { return pairwiseJudgingEnabled != null && pairwiseJudgingEnabled; }
+    public void setPairwiseJudgingEnabled(Boolean pairwiseJudgingEnabled) { this.pairwiseJudgingEnabled = pairwiseJudgingEnabled; }
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }

@@ -29,6 +29,7 @@ public class AuthResponse {
         private Long id;
         private String username;
         private String email;
+        private String phone;
 
         public UserDto() {}
 
@@ -46,5 +47,8 @@ public class AuthResponse {
 
         public String getEmail() { return email; }
         public void setEmail(String email) { this.email = email; }
+
+        public String getPhone() { return phone; }
+        public void setPhone(String phone) { this.phone = phone; }
     }
 }

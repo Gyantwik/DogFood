@@ -148,14 +148,132 @@ The CSV export is strictly protected by `@PreAuthorize("hasAnyRole('ORGANIZER', 
 
 ---
 
-## 7. Acceptance & Verification Scope
+## 7. Operational Dashboards: Coverage & Workload Balancing
+
+To give organizers real-time visibility into the judging process without exposing sensitive individual ratings:
+
+### 7.1 Judge Coverage Dashboard (`GET /api/events/{eventId}/judging/coverage`)
+Monitors the review saturation of every project relative to the target review count (default: 3 reviews per project):
+- **Fully Covered ($3/3 \checkmark$)**: Green status pill indicating project has achieved its target evaluation quota.
+- **Partially Covered ($1/3$ or $2/3 \triangle$)**: Yellow status pill indicating active reviews in progress or queue deficits.
+- **Unassigned / Zero Reviews ($0/3 \times$)**: Red status pill highlighting at-risk submissions needing organizer attention.
+- Features real-time track and project search filtering.
+
+### 7.2 Judge Workload Balancing Dashboard (`GET /api/events/{eventId}/judging/workload`)
+Visualizes judge capacity and completion velocity across the event:
+- Tracks `assignedCount`, `completedCount`, `remainingCount`, and `completionPercentage` per judge.
+- Color-coded progress bars (Green $\ge 100\%$, Blue $\ge 50\%$, Yellow $< 50\%$, Gray $= 0\%$).
+- Displays active judge status pills (`DONE`, `IN PROGRESS`, `PENDING`).
+
+### 7.3 Enhanced Auto-Assignment Reporting
+When organizers trigger auto-assignment (`POST /api/events/{eventId}/assignments` with `autoAssign: true`), the response returns comprehensive operational telemetry:
+- `projectsFullyCovered`: Count of submissions meeting target quota.
+- `projectsUnderCovered`: Count of submissions below target quota due to pool exhaustion.
+- `assignmentsSkipped`: Count of assignments avoided due to conflict of interest or track mismatch.
+- `skipReasons`: Explanatory log detailing why specific pairings were skipped.
+
+---
+
+## 8. Scoring Health & Anomaly Monitoring
+
+### 8.1 Organizer Scoring Health View (`GET /api/events/{eventId}/judging/scoring-health`)
+Provides event directors with high-level statistical health indicators:
+- `overallCompletionRate`: Event-wide ratio of submitted reviews against required review quota.
+- `projectsZeroReviews`, `projectsSingleReview`, `projectsFullyReviewed`: Submissions broken down by completion tier.
+- `judgeStats`: Per-judge statistics including sample mean ($\mu_i$), sample standard deviation ($\sigma_i$), and queue completion flag.
+
+### 8.2 Strict Privacy & Zero Peer Score Leakage
+- **No Peer Exposure**: The scoring health endpoint is strictly gated by `@PreAuthorize("hasAnyRole('ORGANIZER', 'ADMIN')")`. Judges requesting this endpoint receive `403 Forbidden`.
+- **Anonymized Deliberation**: Individual judge criteria ratings and qualitative comments are never disclosed to peer judges or public viewers.
+
+---
+
+## 9. Mathematical Reproducibility & Normalization Proof
+
+To build absolute trust in hackathon outcomes, organizers can audit the exact mathematical transformation via:
+`GET /api/events/{eventId}/judging/normalization-proof`
+
+### 9.1 Reproducible Proof Report
+The endpoint returns:
+- `formula`: Canonical equation $T = 50 + 10 \cdot Z$ where $Z = \frac{X - \mu}{\sigma}$.
+- `zeroVarianceFallbackRule`: Formal declaration that when $\sigma = 0$ or $N \le 1$, $Z \equiv 0 \implies T = 50.0$.
+- `judgeDistributions`: Exact calculated values for $\mu_i$, $\sigma_i$, evaluation count $N_i$, and applied method.
+- `projectCalculations`: Step-by-step breakdown for each submission including per-judge raw score, judge mean/std dev, computed $Z$-score, computed $T$-score, and resulting rank shift ($\Delta$).
+
+### 9.2 Interactive Dashboard Proof Modal
+Organizers can click **"Inspect Mathematical Normalization Proof"** in the Command Center to open an interactive modal displaying the verified judge parameters and per-project calculation derivations in real time.
+
+---
+
+## 10. Acceptance & Verification Scope
 
 The DogFood verification strategy distinguishes between official black-box acceptance and white-box system testing:
 
-1. **Official Acceptance Suite (`run.py`)**:
-   - The unmodified 7-check organizer script tests core Tier 1 (public gallery, fixture presence, deadline submission rejection) and Tier 2 (judge self-scores, peer score isolation, participant score blockade, and CSV export).
-   - *Honest Disclosure*: `run.py` does not test mathematical $Z$-score normalization curves or track-matched auto-assignment algorithms.
-2. **Java Test Suite (42 Tests)**:
-   - Evaluates full system logic including `ZScoreNormalizationServiceTest` (zero-variance fallback and scale-mixing prevention), `TrackMatchedJudgeAssignmentTest` (track matching, non-matching exclusion, COI exclusion, idempotency, manual cross-track overrides), and `JudgingSecurityTest` (RBAC and authorization gates).
-3. **Live Database Verification**:
-   - Track matching and COI enforcement are verified directly against clean PostgreSQL instances with Flyway migrations `V1`–`V6`.
+1. **T1 & T2 Hardening & Integrity Suite (`tests/t1-t2-hardening-suite.py`)**:
+   - Validates submission readiness pre-flight checks, judge coverage metrics, judge workload balancing, organizer scoring health telemetry, normalization analysis, and reproducible proof verification.
+   - Enforces role isolation (ensuring judges and visitors are blocked from scoring-health and normalization APIs).
+2. **Submission Lifecycle Verification Suite (`tests/submission-lifecycle-test.py`)**:
+   - 11-step mandatory test verifying draft creation, submission, public gallery visibility, pre-deadline versioned edits ($v1 \to v2$), and strict deadline rejection ($409$).
+3. **T3 & T4 Full System Verification Suite (`tests/t3-t4-verification-suite.py`)**:
+   - 52-step end-to-end verification covering triple-mode voting, rate-limiting, HMAC-SHA256 judge record verification, certificate authority ledger, bulk data migration, and audit trail logging.
+4. **Frontend Truthfulness Test Suite (`frontend/tests/truthfulness.test.mjs`)**:
+   - 42-step headless browser and route test suite confirming RBAC guards, truthful status rendering, zero mock data, and dynamic deadline countdown UX.
+5. **Pairwise Judging & Bradley-Terry Verification Suite (`tests/pairwise-judging-test.py`)**:
+   - 51-step end-to-end suite verifying mode toggle, heuristic pair selection, zero-leakage peer isolation, duplicate rejection (409), winner validation, Bradley-Terry MM convergence, coverage telemetry, deliberation protection, RFC 4180 CSV export, and audit trails.
+
+---
+
+## 11. Bonus Challenge: Pairwise Judging Mode & Bradley-Terry Engine (+5)
+
+### 11.1 Architectural Overview
+The platform introduces **Pairwise Judging Mode** as an organizer-configurable alternative or complementary judging modality:
+- **Organizer Toggle**: Configurable per-event via `POST /api/events/{id}/pairwise/toggle` (`pairwise_judging_enabled`).
+- **Duel Experience**: Judges compare exactly TWO eligible projects side-by-side (`[ Project A is Better ]` vs `[ Project B is Better ]`) with keyboard shortcuts (`A`/`Left Arrow` for Project A, `B`/`Right Arrow` for Project B, `S` for Skip) and comparative rationale notes.
+- **Queue Transition**: Submitting or skipping a duel automatically advances to the next pair with instant state updates.
+
+### 11.2 Bounded Smart Pair Generation
+Candidate pair selection prioritizes graph coverage while bounding combinatorial expansion:
+1. **Underrepresented Project Prioritization**: Projects with the fewest total comparisons across the event are prioritized to ensure uniform connectivity.
+2. **Novel Pair Selection**: Matchups not yet evaluated by ANY judge are prioritized to maximize the number of unique edges in the comparison graph.
+3. **Bounded Candidate Pool ($K \le 40$)**: Rather than generating all $O(N^2)$ pairs across large submission tables, candidate generation evaluates the $K$ least-evaluated submissions, preventing heap memory exhaustion and providing microsecond response times.
+4. **COI & Track Enforcement**: Matchups automatically exclude projects where the judge has a declared COI or team membership, and filter by assigned track when configured.
+
+### 11.3 Relational Integrity & Duplicate Rejection
+- **Canonical Ordering**: Pairs are strictly persisted with $p_A < p_B$ enforced via DB check constraint `chk_canonical_pair CHECK (project_a_id < project_b_id)`.
+- **Duplicate Prevention**: A unique constraint `uk_judge_event_pair (judge_id, event_id, project_a_id, project_b_id)` guarantees that a judge cannot evaluate the same pair twice. Reversed submissions $(B, A)$ are canonicalized to $(A, B)$ and rejected with **HTTP 409 Conflict**.
+- **Winner Validation**: The submitted `winnerProjectId` must strictly equal either `projectAId` or `projectBId`; otherwise rejected with **HTTP 400 Bad Request**.
+
+### 11.4 Peer Privacy & Zero-Leakage Guarantee
+- **No Score Exposure**: The pairwise payload never discloses numeric scores, normalized scores, rubric ratings, or prior judge comments.
+- **Isolated History**: A judge requesting `/api/events/{id}/judging/pairwise/history` receives only their own comparisons. Requesting a peer judge's comparison stream is rejected with **HTTP 403 Forbidden**.
+- **Deliberation Protection**: Pairwise rankings are strictly hidden from participants and visitors until `resultsPublishAt` (HTTP 403/401).
+
+### 11.5 Bradley-Terry Minorization-Maximization (MM) Algorithm
+Latent project strengths $s_i > 0$ are recovered using the Bradley-Terry probabilistic model:
+
+$$P(i \succ j) = \frac{s_i}{s_i + s_j}$$
+
+1. **Log-Likelihood with Bayesian Smoothing Prior ($\alpha = 0.05$)**:
+   To prevent division by zero or divergence on sparse/disconnected graphs, regularized MM updates iteratively compute:
+   $$s_i^{(t+1)} = \frac{w_i + \alpha}{\sum_{j \ne i} \frac{n_{ij}}{s_i^{(t)} + s_j^{(t)}} + \alpha}$$
+   Where $w_i$ is the total wins of project $i$, and $n_{ij} = w_{ij} + w_{ji}$ is the total comparisons between $i$ and $j$.
+
+2. **Scale Normalization**:
+   At each iteration, strengths are normalized to an average latent strength of $1.000$:
+   $$s_i \leftarrow s_i \cdot \frac{N}{\sum_{k=1}^N s_k}$$
+
+3. **Convergence Criterion**:
+   Iterations continue until maximum parameter shift drops below $\epsilon = 10^{-6}$ or 100 iterations:
+   $$\max_{i} |s_i^{(t+1)} - s_i^{(t)}| < 10^{-6}$$
+
+4. **Graph Connectivity Detection (BFS)**:
+   The comparison graph is evaluated for connected components:
+   - If disconnected ($C > 1$ components): Status is reported as `INSUFFICIENT_COVERAGE`, warning organizers that rankings are preliminary because comparisons span disconnected components.
+   - If connected ($C = 1$ and unique pairs $\ge N - 1$): Status is reported as `CONVERGED`.
+
+### 11.6 Organizer Coverage Dashboard & RFC 4180 CSV Export
+- **Coverage Telemetry (`/api/events/{id}/judging/pairwise/coverage`)**: Reports total projects, total possible pairs $N(N-1)/2$, unique pairs compared, coverage %, participating judges, disconnected components, and health status (`EXCELLENT`, `MODERATE`, `INSUFFICIENT`).
+- **RFC 4180 CSV Export (`/api/events/{id}/export/pairwise`)**: Generates audit-ready CSV exports including `Event ID, Track, Rank, Project ID, Title, Comparisons, Wins, Losses, Win Rate (%), Bradley-Terry Strength`. Restricted to organizers and admins (HTTP 403 for participants).
+- **Audit Logging**: All mode toggles, comparison submissions, duplicate rejections, and ranking evaluations are recorded immutably in the event audit log.
+
+

@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const badge = document.getElementById('healthBadge');
   if (badge) {
     badge.className = `health-badge ${healthRes.ok ? 'online' : 'offline'}`;
-    badge.innerHTML = `<i></i><span>${healthRes.ok ? 'Backend Online' : 'Offline Mode'}</span>`;
+    badge.innerHTML = `<i></i><span>${healthRes.ok ? 'API Online' : 'Offline Mode'}</span>`;
   }
 
   // 4. Mouse glow ambient effect

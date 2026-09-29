@@ -1,0 +1,37 @@
+# Maven / Java Build Artifacts
+backend/target/
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Logs & Temporary Scratch Files
+scratch/
+*.log
+.system_generated/
+
+# IDE & Editor Files
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS Metadata
+.DS_Store
+Thumbs.db
+
+# Local acceptance config & environment secrets
+.env
+*.env
+__pycache__/
+*.pyc
+*.zip
+DogFoodInfo.txt
+
+# Internal team handoff and scratch docs
+PERSON-*.md
+PERSON_*.md
+dogfood-fullstack-prompt.md
+

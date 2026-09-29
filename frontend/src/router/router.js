@@ -16,8 +16,10 @@ import { renderDashboard } from '../views/dashboardView.js';
 import { renderJudge } from '../views/judgeView.js';
 import { renderResults } from '../views/resultsView.js';
 import { renderAuth } from '../views/authView.js';
+import { renderProfile } from '../views/profileView.js';
 import { renderSystem } from '../views/systemView.js';
 import { renderEmbedGallery } from '../views/embedGalleryView.js';
+import { renderVerification } from '../views/verificationView.js';
 import { checkRouteAccess, renderAccessDenied, renderChooseEventState } from '../components/requireRole.js';
 import { authStore } from '../store/authStore.js';
 import { notify } from '../lib/dom.js';
@@ -147,8 +149,12 @@ class Router {
       await renderJudge(this.appContentContainer, null);
     } else if (normalizedHash === '#/results') {
       await renderResults(this.appContentContainer, activeEventId);
+    } else if (normalizedHash === '#/profile') {
+      await renderProfile(this.appContentContainer, activeEventId);
     } else if (normalizedHash === '#/system') {
       renderSystem(this.appContentContainer);
+    } else if (normalizedHash === '#/verify' || normalizedHash.startsWith('#/verify')) {
+      await renderVerification(this.appContentContainer);
     } else {
       // Default fallback
       await renderGallery(this.appContentContainer, activeEventId);

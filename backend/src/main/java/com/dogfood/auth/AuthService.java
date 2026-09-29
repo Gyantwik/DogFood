@@ -52,6 +52,9 @@ public class AuthService {
                 request.getEmail().trim().toLowerCase(),
                 passwordEncoder.encode(request.getPassword())
         );
+        if (request.getPhone() != null && !request.getPhone().isBlank()) {
+            user.setPhone(request.getPhone().trim());
+        }
         user = userRepository.save(user);
 
         auditLogService.logAction(null, null, "USER_SIGNUP", "User registered: " + user.getUsername() + " (id=" + user.getId() + ")");
@@ -59,9 +62,12 @@ public class AuthService {
         String token = tokenProvider.generateToken(user.getId(), user.getEmail(), user.getUsername());
         Map<Long, String> rolesByEvent = getRolesByEvent(user.getId());
 
+        AuthResponse.UserDto userDto = new AuthResponse.UserDto(user.getId(), user.getUsername(), user.getEmail());
+        userDto.setPhone(user.getPhone());
+
         return new AuthResponse(
                 token,
-                new AuthResponse.UserDto(user.getId(), user.getUsername(), user.getEmail()),
+                userDto,
                 rolesByEvent
         );
     }
@@ -80,9 +86,12 @@ public class AuthService {
         String token = tokenProvider.generateToken(user.getId(), user.getEmail(), user.getUsername());
         Map<Long, String> rolesByEvent = getRolesByEvent(user.getId());
 
+        AuthResponse.UserDto userDto = new AuthResponse.UserDto(user.getId(), user.getUsername(), user.getEmail());
+        userDto.setPhone(user.getPhone());
+
         return new AuthResponse(
                 token,
-                new AuthResponse.UserDto(user.getId(), user.getUsername(), user.getEmail()),
+                userDto,
                 rolesByEvent
         );
     }
@@ -94,8 +103,11 @@ public class AuthService {
 
         Map<Long, String> rolesByEvent = getRolesByEvent(user.getId());
 
+        AuthResponse.UserDto userDto = new AuthResponse.UserDto(user.getId(), user.getUsername(), user.getEmail());
+        userDto.setPhone(user.getPhone());
+
         return new UserProfileResponse(
-                new AuthResponse.UserDto(user.getId(), user.getUsername(), user.getEmail()),
+                userDto,
                 rolesByEvent
         );
     }

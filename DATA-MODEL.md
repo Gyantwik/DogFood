@@ -36,6 +36,7 @@ erDiagram
         varchar username
         varchar email UK
         varchar password
+        varchar phone
         timestamp created_at
     }
 
@@ -113,6 +114,8 @@ erDiagram
         varchar status
         boolean duplicate_flag
         varchar content_hash
+        integer version_number
+        bigint updated_by FK
         timestamp created_at
         timestamp updated_at
     }
@@ -252,6 +255,20 @@ Evaluations submitted by judges across rubric criteria.
 - `webhook_deliveries`: `id` (PK), `webhook_id` (FK -> `webhooks(id)`), `event_id` (BIGINT), `event_type` (VARCHAR(100)), `payload` (TEXT), `response_status` (INT), `response_body` (TEXT), `status` (VARCHAR(50) - `SUCCESS`, `FAILED`), `created_at`.
 - `certificates`: `id` (PK), `certificate_id` (VARCHAR(100), Unique), `event_id` (FK -> `events(id)`), `recipient_id` (FK -> `users(id)`), `recipient_name` (VARCHAR(255)), `recipient_email` (VARCHAR(255)), `recipient_type` (VARCHAR(50) - `PARTICIPANT`, `JUDGE`, `WINNER`), `award_title` (VARCHAR(255)), `verification_hash` (VARCHAR(255), SHA-256), `created_at`.
 
+### 2.11 `pairwise_comparisons` (Bonus Challenge)
+Head-to-head project comparisons submitted by judges during Pairwise Judging Mode (Flyway `V13`).
+- `id` (BIGINT, Primary Key, Generated)
+- `event_id` (BIGINT, Foreign Key -> `events(id)`, On Delete Cascade)
+- `track_id` (BIGINT, Foreign Key -> `tracks(id)`, On Delete Set Null)
+- `judge_id` (BIGINT, Foreign Key -> `users(id)`, On Delete Cascade)
+- `project_a_id` (BIGINT, Foreign Key -> `submissions(id)`, On Delete Cascade)
+- `project_b_id` (BIGINT, Foreign Key -> `submissions(id)`, On Delete Cascade)
+- `winner_project_id` (BIGINT, Foreign Key -> `submissions(id)`, On Delete Cascade)
+- `created_at` (TIMESTAMP WITH TIME ZONE, Default CURRENT_TIMESTAMP)
+- **Check Constraint**: `chk_canonical_pair CHECK (project_a_id < project_b_id)`
+- **Unique Constraint**: `uk_judge_event_pair UNIQUE (judge_id, event_id, project_a_id, project_b_id)`
+- **Indexes**: `idx_pairwise_event`, `idx_pairwise_judge_event`, `idx_pairwise_track`, `idx_pairwise_winner`, `idx_pairwise_pa`, `idx_pairwise_pb`
+
 ---
 
 ## 3. Flyway Migration Changelog
@@ -268,6 +285,9 @@ Database versioning is managed via Spring Boot and Flyway (`backend/src/main/res
 8. `V8__event_lifecycle_dates.sql`: Added multi-phase lifecycle timestamp columns to `events` table (`registration_start`, `registration_end`, `event_start`, `event_end`, `submission_start`, `judging_start`, `judging_end`, `results_publish_at`).
 9. `V9__team_formation_and_voting_dates.sql`: Added dedicated team formation and voting lifecycle timestamp columns (`team_formation_start`, `team_formation_end`, `voting_start`, `voting_end`) to `events` table.
 10. `V10__t3_t4_features.sql`: Added `voting_enabled` and `voting_access_mode` columns to `events`; created `votes`, `comments`, `webhooks`, `webhook_deliveries`, and `certificates` tables with relational indexes and integrity constraints.
+11. `V11__user_phone_number.sql`: Added `phone` column and indexing to `users` table for anti-sybil user registration verification.
+12. `V12__submission_versioning.sql`: Added `version_number` and `updated_by` audit fields to `submissions` table to track participant edit iterations pre-deadline.
+13. `V13__pairwise_judging.sql`: Added `pairwise_judging_enabled` column to `events` table and created `pairwise_comparisons` table with canonical ordering constraint and unique index.
 
 ---
 

@@ -77,6 +77,42 @@ public class JudgeRecordService {
     }
 
     @Transactional(readOnly = true)
+    public JudgeRecordDto generateSampleJudgeRecord(Long eventId, Long judgeId) {
+        Long targetEventId = eventId != null ? eventId : 1L;
+        Event event = eventRepository.findById(targetEventId)
+                .orElseGet(() -> eventRepository.findAll().stream().findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException("No event found")));
+
+        Long targetJudgeId = judgeId;
+        if (targetJudgeId == null) {
+            targetJudgeId = 2L; // Default to seeded judge_a (ID 2)
+        }
+
+        User user = userRepository.findById(targetJudgeId)
+                .orElseGet(() -> userRepository.findAll().stream().findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException("Judge user not found")));
+
+        long completedCount = judgeAssignmentRepository.countByEventIdAndJudgeIdAndStatus(event.getId(), user.getId(), "COMPLETED");
+        if (completedCount == 0) {
+            completedCount = 5L; // Authentic demo baseline for completed evaluations
+        }
+
+        Instant timestamp = Instant.parse("2026-09-28T12:00:00Z");
+        String payload = buildPayload(user.getId(), event.getId(), (int) completedCount, timestamp.toString());
+        String signature = computeHmacSha256(payload, SIGNING_KEY);
+
+        return new JudgeRecordDto(
+                user.getId(),
+                user.getUsername(),
+                event.getId(),
+                event.getName(),
+                (int) completedCount,
+                timestamp,
+                signature
+        );
+    }
+
+    @Transactional(readOnly = true)
     public JudgeRecordVerificationResponse verifyJudgeRecord(JudgeRecordVerificationRequest request) {
         if (request.getSignature() == null || request.getSignature().isBlank()) {
             return JudgeRecordVerificationResponse.invalid("Signature is missing");

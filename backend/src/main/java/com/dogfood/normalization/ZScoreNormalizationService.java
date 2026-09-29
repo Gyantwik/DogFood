@@ -3,6 +3,8 @@ package com.dogfood.normalization;
 import com.dogfood.auth.User;
 import com.dogfood.auth.UserRepository;
 import com.dogfood.common.audit.AuditLogService;
+import com.dogfood.events.Event;
+import com.dogfood.events.EventRepository;
 import com.dogfood.events.Score;
 import com.dogfood.events.ScoreRepository;
 import com.dogfood.events.Submission;
@@ -20,16 +22,28 @@ public class ZScoreNormalizationService {
     private final SubmissionRepository submissionRepository;
     private final UserRepository userRepository;
     private final AuditLogService auditLogService;
+    private final EventRepository eventRepository;
 
     public ZScoreNormalizationService(
             ScoreRepository scoreRepository,
             SubmissionRepository submissionRepository,
             UserRepository userRepository,
             AuditLogService auditLogService) {
+        this(scoreRepository, submissionRepository, userRepository, auditLogService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ZScoreNormalizationService(
+            ScoreRepository scoreRepository,
+            SubmissionRepository submissionRepository,
+            UserRepository userRepository,
+            AuditLogService auditLogService,
+            EventRepository eventRepository) {
         this.scoreRepository = scoreRepository;
         this.submissionRepository = submissionRepository;
         this.userRepository = userRepository;
         this.auditLogService = auditLogService;
+        this.eventRepository = eventRepository;
     }
 
     /**
@@ -194,5 +208,163 @@ public class ZScoreNormalizationService {
         }
 
         return distributionList;
+    }
+
+    @Transactional
+    public NormalizationAnalysisDto getNormalizationAnalysis(Long eventId) {
+        normalizeScoresForEvent(eventId);
+
+        Event event = (eventRepository != null) ? eventRepository.findById(eventId).orElse(null) : null;
+        String eventName = event != null ? event.getName() : "Event #" + eventId;
+
+        List<Submission> submissions = submissionRepository.findByEventId(eventId);
+        List<Score> scores = scoreRepository.findByEventId(eventId);
+
+        Map<Long, List<Score>> scoresBySub = scores.stream().collect(Collectors.groupingBy(Score::getSubmissionId));
+
+        List<NormalizationAnalysisDto.ProjectRankAnalysisItem> items = new ArrayList<>();
+        for (Submission sub : submissions) {
+            List<Score> subScores = scoresBySub.getOrDefault(sub.getId(), Collections.emptyList());
+            double avgRaw = subScores.stream().mapToDouble(Score::getRawScore).average().orElse(0.0);
+            double avgNorm = subScores.stream().mapToDouble(s -> s.getNormalizedScore() != null ? s.getNormalizedScore() : 50.0).average().orElse(50.0);
+
+            items.add(new NormalizationAnalysisDto.ProjectRankAnalysisItem(
+                    sub.getId(),
+                    sub.getTitle(),
+                    sub.getTrack() != null ? sub.getTrack() : "General",
+                    Math.round(avgRaw * 100.0) / 100.0,
+                    Math.round(avgNorm * 100.0) / 100.0,
+                    subScores.size(),
+                    0,
+                    0,
+                    0
+            ));
+        }
+
+        // Calculate raw ranks
+        items.sort((a, b) -> Double.compare(b.getRawScore(), a.getRawScore()));
+        for (int i = 0; i < items.size(); i++) {
+            items.get(i).setRawRank(i + 1);
+        }
+
+        // Calculate normalized ranks
+        items.sort((a, b) -> Double.compare(b.getNormalizedScore(), a.getNormalizedScore()));
+        for (int i = 0; i < items.size(); i++) {
+            items.get(i).setNormalizedRank(i + 1);
+            items.get(i).setRankChange(items.get(i).getRawRank() - items.get(i).getNormalizedRank());
+        }
+
+        NormalizationAnalysisDto dto = new NormalizationAnalysisDto();
+        dto.setEventId(eventId);
+        dto.setEventName(eventName);
+        dto.setNormalizationMethod("Linear T-Score Transformation (T = 50 + 10 * Z)");
+        dto.setFormulaExplanation("Z = (X - μ) / σ, then T = 50 + 10 * Z. Where Z=0 maps to T=50, Z>0 maps to T>50, and Z<0 maps to T<50.");
+        dto.setNeutralFallback(50.0);
+        dto.setTotalProjects(items.size());
+        dto.setProjects(items);
+        return dto;
+    }
+
+    @Transactional
+    public NormalizationProofDto getNormalizationProof(Long eventId) {
+        normalizeScoresForEvent(eventId);
+
+        List<Score> scores = scoreRepository.findByEventId(eventId);
+        List<Submission> submissions = submissionRepository.findByEventId(eventId);
+
+        Map<Long, List<Score>> judgeScores = scores.stream().collect(Collectors.groupingBy(Score::getJudgeId));
+        List<NormalizationProofDto.JudgeDistributionProof> distProofs = new ArrayList<>();
+        Map<Long, Double> judgeMeans = new HashMap<>();
+        Map<Long, Double> judgeStdDevs = new HashMap<>();
+        Map<Long, Boolean> judgeZeroVar = new HashMap<>();
+
+        for (Map.Entry<Long, List<Score>> entry : judgeScores.entrySet()) {
+            Long jId = entry.getKey();
+            List<Score> jList = entry.getValue();
+            String jName = userRepository.findById(jId).map(User::getUsername).orElse("Judge #" + jId);
+
+            double mean = jList.stream().mapToDouble(Score::getRawScore).average().orElse(0.0);
+            double sumSq = jList.stream().mapToDouble(s -> Math.pow(s.getRawScore() - mean, 2)).sum();
+            double variance = jList.size() > 1 ? sumSq / (jList.size() - 1) : 0.0;
+            double stdDev = Math.sqrt(variance);
+            boolean zeroVar = stdDev < 0.0001;
+
+            judgeMeans.put(jId, mean);
+            judgeStdDevs.put(jId, stdDev);
+            judgeZeroVar.put(jId, zeroVar);
+
+            distProofs.add(new NormalizationProofDto.JudgeDistributionProof(
+                    jId,
+                    jName,
+                    jList.size(),
+                    Math.round(mean * 100.0) / 100.0,
+                    Math.round(stdDev * 100.0) / 100.0,
+                    zeroVar,
+                    zeroVar ? "Zero-Variance Neutral Fallback (T=50.00)" : "Standard Normalization: 50 + 10 * ((X - μ) / σ)"
+            ));
+        }
+
+        Map<Long, List<Score>> subScoresMap = scores.stream().collect(Collectors.groupingBy(Score::getSubmissionId));
+        List<NormalizationProofDto.ProjectProofItem> projectProofs = new ArrayList<>();
+
+        for (Submission sub : submissions) {
+            List<Score> subScores = subScoresMap.getOrDefault(sub.getId(), Collections.emptyList());
+            NormalizationProofDto.ProjectProofItem pProof = new NormalizationProofDto.ProjectProofItem();
+            pProof.setSubmissionId(sub.getId());
+            pProof.setTitle(sub.getTitle());
+
+            List<NormalizationProofDto.ScoreStepProof> steps = new ArrayList<>();
+            for (Score s : subScores) {
+                Long jId = s.getJudgeId();
+                double mean = judgeMeans.getOrDefault(jId, 0.0);
+                double stdDev = judgeStdDevs.getOrDefault(jId, 0.0);
+                boolean zeroVar = judgeZeroVar.getOrDefault(jId, false);
+
+                double z = zeroVar ? 0.0 : ((s.getRawScore() - mean) / stdDev);
+                double t = zeroVar ? 50.0 : (50.0 + 10.0 * z);
+                String note = zeroVar ? "Zero variance (stdDev=0): fallback T=50.00" :
+                        (z > 0 ? String.format("Above judge average (Z=%.2f > 0, T=%.2f > 50)", z, t) :
+                        (z < 0 ? String.format("Below judge average (Z=%.2f < 0, T=%.2f < 50)", z, t) :
+                                "Exactly equal to judge average (Z=0, T=50.00)"));
+
+                steps.add(new NormalizationProofDto.ScoreStepProof(
+                        jId,
+                        Math.round(s.getRawScore() * 100.0) / 100.0,
+                        Math.round(mean * 100.0) / 100.0,
+                        Math.round(stdDev * 100.0) / 100.0,
+                        Math.round(z * 100.0) / 100.0,
+                        Math.round(t * 100.0) / 100.0,
+                        note
+                ));
+            }
+            pProof.setScoreSteps(steps);
+            double avgRaw = subScores.stream().mapToDouble(Score::getRawScore).average().orElse(0.0);
+            double avgNorm = subScores.stream().mapToDouble(s -> s.getNormalizedScore() != null ? s.getNormalizedScore() : 50.0).average().orElse(50.0);
+            pProof.setAverageRawScore(Math.round(avgRaw * 100.0) / 100.0);
+            pProof.setAverageNormalizedScore(Math.round(avgNorm * 100.0) / 100.0);
+            projectProofs.add(pProof);
+        }
+
+        // Rank by raw
+        projectProofs.sort((a, b) -> Double.compare(b.getAverageRawScore(), a.getAverageRawScore()));
+        for (int i = 0; i < projectProofs.size(); i++) {
+            projectProofs.get(i).setRawRank(i + 1);
+        }
+
+        // Rank by normalized
+        projectProofs.sort((a, b) -> Double.compare(b.getAverageNormalizedScore(), a.getAverageNormalizedScore()));
+        for (int i = 0; i < projectProofs.size(); i++) {
+            projectProofs.get(i).setNormalizedRank(i + 1);
+        }
+
+        NormalizationProofDto dto = new NormalizationProofDto();
+        dto.setEventId(eventId);
+        dto.setFormula("T = 50 + 10 * Z");
+        dto.setZScoreDefinition("Z = (X - μ) / σ, measuring distance from judge mean in units of standard deviation.");
+        dto.setZeroVarianceFallbackRule("When σ = 0 (judge gave identical scores), Z is undefined; neutral fallback T = 50.00 is applied.");
+        dto.setJudgeDistributions(distProofs);
+        dto.setProjectCalculations(projectProofs);
+        dto.setRankMovementExplanation("Strict judges have lower means; a score of 3.8 from a strict judge (mean 3.0) yields Z > 0, scaling T > 50. Lenient judges have higher means; a score of 4.0 from a lenient judge (mean 4.5) yields Z < 0, scaling T < 50. This equalizes judge baselines and prevents bias from assignment luck.");
+        return dto;
     }
 }

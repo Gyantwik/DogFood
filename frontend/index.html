@@ -48,10 +48,11 @@
       <a href="#/judge" data-r="judge">Judge</a>
       <a href="#/dashboard" data-r="dashboard">Dashboard</a>
       <a href="#/results" data-r="results">Results</a>
+      <a href="#/profile" data-r="profile">Profile &amp; Certs</a>
     </nav>
 
     <div class="right">
-      <span class="health-badge offline" id="healthBadge"><i></i><span>Offline Mode</span></span>
+      <span class="health-badge online" id="healthBadge"><i></i><span>API Online</span></span>
       <span class="rolebadge" id="navUserRoleBadge" style="display:none">PARTICIPANT</span>
       <a class="btn main sm siteb" href="#seats">Launch Portal &rarr;</a>
       <a class="btn ghost sm appb" href="#/" style="display:none" title="Return to Home Overview">&larr; Home</a>
@@ -125,6 +126,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0Z"/></svg>
             Leaderboard Results
           </a>
+          <a href="#/profile" data-r="profile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            My Profile &amp; Certs
+          </a>
         </nav>
         <div class="ub" id="userBox"></div>
       </aside>
@@ -138,6 +143,6 @@
   <div class="toast2" id="toast2" role="status" aria-live="polite"></div>
 
   <!-- Main Modular JavaScript Entrypoint -->
-  <script type="module" src="./src/main.js?v=3.0"></script>
+  <script type="module" src="./src/main.js?v=5.0"></script>
 </body>
 </html>

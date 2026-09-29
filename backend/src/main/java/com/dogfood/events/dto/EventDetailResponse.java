@@ -23,6 +23,7 @@ public class EventDetailResponse {
     private Instant votingEnd;
     private Boolean votingEnabled;
     private String votingAccessMode;
+    private Boolean pairwiseJudgingEnabled;
     private Instant resultsPublishAt;
     private List<TrackDto> tracks;
     private Instant createdAt;
@@ -92,6 +93,9 @@ public class EventDetailResponse {
 
     public String getVotingAccessMode() { return votingAccessMode; }
     public void setVotingAccessMode(String votingAccessMode) { this.votingAccessMode = votingAccessMode; }
+
+    public Boolean getPairwiseJudgingEnabled() { return pairwiseJudgingEnabled; }
+    public void setPairwiseJudgingEnabled(Boolean pairwiseJudgingEnabled) { this.pairwiseJudgingEnabled = pairwiseJudgingEnabled; }
 
     public Instant getResultsPublishAt() { return resultsPublishAt; }
     public void setResultsPublishAt(Instant resultsPublishAt) { this.resultsPublishAt = resultsPublishAt; }

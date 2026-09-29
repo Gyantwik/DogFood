@@ -38,4 +38,8 @@ public class AuditLogService {
     public java.util.List<AuditLog> getRecentLogs() {
         return auditLogRepository.findTop10ByOrderByCreatedAtDesc();
     }
+
+    public java.util.List<AuditLog> getLogsForEvent(Long eventId) {
+        return auditLogRepository.findByEventIdOrderByCreatedAtDesc(eventId);
+    }
 }

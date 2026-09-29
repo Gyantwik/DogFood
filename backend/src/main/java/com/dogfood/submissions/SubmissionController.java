@@ -59,6 +59,17 @@ public class SubmissionController {
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
+    // Pre-flight submission readiness check
+    @GetMapping({"/events/{eventId}/submissions/readiness", "/events/{eventId}/submissions/{submissionId}/readiness"})
+    public ResponseEntity<ApiResponse<SubmissionReadinessResponse>> getSubmissionReadiness(
+            @PathVariable Long eventId,
+            @PathVariable(required = false) Long submissionId,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        Long userId = currentUser != null ? currentUser.getId() : null;
+        SubmissionReadinessResponse resp = submissionService.checkSubmissionReadiness(eventId, submissionId, userId);
+        return ResponseEntity.ok(ApiResponse.ok(resp));
+    }
+
     // Get single submission details
     @GetMapping({"/submissions/{submissionId}", "/events/{eventId}/submissions/{submissionId}"})
     public ResponseEntity<ApiResponse<SubmissionResponse>> getSubmission(

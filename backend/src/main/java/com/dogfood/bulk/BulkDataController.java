@@ -65,4 +65,30 @@ public class BulkDataController {
         List<AuditLog> logs = auditLogRepository.findByEventIdOrderByCreatedAtDesc(eventId);
         return ResponseEntity.ok(ApiResponse.ok(logs));
     }
+
+    @PostMapping("/clone")
+    public ResponseEntity<ApiResponse<com.dogfood.events.dto.EventDetailResponse>> cloneEvent(
+            @PathVariable Long eventId,
+            @RequestBody(required = false) CloneEventRequest request,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("Authentication required"));
+        }
+        com.dogfood.events.dto.EventDetailResponse cloned = bulkDataService.cloneEvent(eventId, request != null ? request : new CloneEventRequest(), currentUser.getId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("Event cloned successfully", cloned));
+    }
+
+    @GetMapping("/audit-logs/export")
+    public ResponseEntity<String> exportAuditLogs(
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Authentication required");
+        }
+        String csv = bulkDataService.exportAuditLogsCsv(eventId, currentUser.getId());
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_TYPE, "text/csv; charset=UTF-8")
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"audit-logs-event-" + eventId + ".csv\"")
+                .body(csv);
+    }
 }

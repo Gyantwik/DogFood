@@ -136,8 +136,22 @@ class MockElement extends MockNode {
       this.className = String(val);
       this.classList._classes = new Set(String(val).split(/\s+/).filter(Boolean));
     }
+    if (name.startsWith('data-')) {
+      const prop = name.slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+      this.dataset[prop] = String(val);
+    }
     if (name === 'value') {
       this._value = String(val);
+    }
+    if (name === 'style') {
+      String(val).split(';').forEach(rule => {
+        const idx = rule.indexOf(':');
+        if (idx !== -1) {
+          const prop = rule.slice(0, idx).trim();
+          const v = rule.slice(idx + 1).trim();
+          if (prop) this.style[prop] = v;
+        }
+      });
     }
   }
   getAttribute(name) { return this.attributes[name] || null; }
@@ -155,6 +169,7 @@ class MockElement extends MockNode {
   }
 
   dispatchEvent(event) {
+    if (!event.target) event.target = this;
     const list = this._listeners[event.type] || [];
     for (const h of list) {
       h.call(this, event);
@@ -298,7 +313,7 @@ async function runTests() {
       console.log(`[PASS] ${name}`);
     } catch (err) {
       results.push({ name, passed: false, error: err });
-      console.error(`[FAIL] ${name}:`, err.message);
+      console.error(`[FAIL] ${name}:`, err.stack || err.message);
     }
   }
 
@@ -1999,6 +2014,79 @@ async function runTests() {
     assert.strictEqual(document.getElementById('pDemo').value, 'https://demo.dogfood.test/prev', "Pre-fills submission demo");
     assert.strictEqual(document.getElementById('pDesc').value, 'Previous submission description', "Pre-fills submission description");
     assert.ok(document.getElementById('pTech').value.includes('React'), "Pre-fills submission tech stack");
+  });
+
+  // Test 42: Organizer Command Center: Interactive Tab switching and live search filters
+  await test("42. Organizer Command Center: Interactive tabs and live search filtering", async () => {
+    const { renderDashboard } = await import('../src/views/dashboardView.js');
+    const { api } = await import('../src/api/client.js');
+
+    api.getDashboard = async () => ({ projectsSubmitted: 4, judgesCount: 2, avgScore: 4.5, completedAssignments: 1, totalEligibleAssignments: 2 });
+    api.getScoreDistribution = async () => [{ judgeId: 2, judgeName: 'judge_a', rawMean: 4.5, rawStdDev: 0.5, normalizedMean: 50.0, reviewsCount: 1 }];
+    api.getRubricDetails = async () => ({ locked: false, criteria: [{ name: 'Criterion A', key: 'crit_a', weight: 100, minScore: 1, maxScore: 5 }] });
+    api.getTracks = async () => [{ id: 1, name: 'AI Track', description: 'Artificial Intelligence' }];
+    api.getJudges = async () => [
+      { id: 2, username: 'judge_alpha', email: 'alpha@dogfood.local' },
+      { id: 3, username: 'judge_beta', email: 'beta@dogfood.local' }
+    ];
+    api.getAssignments = async () => [
+      { id: 1, judgeId: 2, judgeUsername: 'judge_alpha', submissionId: 10, submissionTitle: 'Alpha Bot', track: 'AI Track', status: 'ASSIGNED' },
+      { id: 2, judgeId: 3, judgeUsername: 'judge_beta', submissionId: 20, submissionTitle: 'Beta Engine', track: 'General', status: 'ASSIGNED' }
+    ];
+    api.getSubmissions = async () => [
+      { id: 10, title: 'Alpha Bot', track: 'AI Track' },
+      { id: 20, title: 'Beta Engine', track: 'General' }
+    ];
+    api.getCustomQuestions = async () => [];
+    api.getEvent = async () => ({ id: 1, name: 'Autonomous Hack 2026', status: 'OPEN', submissionDeadline: '2026-10-01T12:00:00Z' });
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    await renderDashboard(container, '1');
+
+    // 1. Verify 5 Tabs exist
+    const tabBtns = container.querySelectorAll('.org-tab-btn');
+    assert.strictEqual(tabBtns.length, 5, "5 interactive tabs exist in the organizer header");
+
+    const overviewPane = container.querySelector('#tab-overview');
+    const judgingPane = container.querySelector('#tab-judging');
+    const setupPane = container.querySelector('#tab-setup');
+    assert.ok(overviewPane !== null && judgingPane !== null && setupPane !== null, "Tab panes exist in DOM");
+
+    // 2. Overview is active initially
+    assert.strictEqual(overviewPane.style.display, 'block', "Overview is active by default");
+    assert.strictEqual(judgingPane.style.display, 'none', "Judging is hidden initially");
+
+    // 3. Switch to Judging tab
+    const judgingTabBtn = Array.from(tabBtns).find(b => b.dataset.tab === 'tab-judging');
+    assert.ok(judgingTabBtn !== undefined, "Judging tab button found");
+    judgingTabBtn.dispatchEvent(new Event('click'));
+
+    assert.strictEqual(judgingPane.style.display, 'block', "Judging pane active after tab click");
+    assert.strictEqual(overviewPane.style.display, 'none', "Overview pane hidden after tab click");
+
+    // 4. Quick Jump to Setup
+    const quickJumpSetup = container.querySelector('.org-quick-tile[data-jump="tab-setup"]');
+    if (quickJumpSetup) {
+      quickJumpSetup.dispatchEvent(new Event('click'));
+      assert.strictEqual(setupPane.style.display, 'block', "Setup pane active after quick jump click");
+    }
+
+    // 5. Test Live Search Filter in Assignments
+    const assignSearchInput = document.getElementById('assignmentSearchInput');
+    assert.ok(assignSearchInput !== null, "Live assignment search input exists");
+
+    assignSearchInput.value = 'Beta Engine';
+    assignSearchInput.dispatchEvent(new Event('input'));
+    const rows = container.querySelectorAll('tr').slice(1);
+    assert.strictEqual(rows.length, 2, "2 assignment rows found");
+    assert.strictEqual(rows[0].style.display, 'none', "Alpha Bot row filtered out");
+    assert.strictEqual(rows[1].style.display, '', "Beta Engine row stays visible");
+
+    // Reset filter
+    assignSearchInput.value = '';
+    assignSearchInput.dispatchEvent(new Event('input'));
+    assert.strictEqual(rows[0].style.display, '', "Alpha Bot row restored on clear filter");
   });
 
   console.log("\n=================================================");

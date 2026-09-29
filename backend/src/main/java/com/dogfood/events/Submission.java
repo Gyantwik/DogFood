@@ -71,6 +71,12 @@ public class Submission {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
 
+    @Column(name = "version_number")
+    private Integer versionNumber = 1;
+
+    @Column(name = "updated_by")
+    private Long updatedBy;
+
     public Submission() {}
 
     public Submission(Long eventId, String title, String tagline, String description, String repoUrl, String status) {
@@ -179,4 +185,10 @@ public class Submission {
 
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
+
+    public Integer getVersionNumber() { return versionNumber != null ? versionNumber : 1; }
+    public void setVersionNumber(Integer versionNumber) { this.versionNumber = versionNumber; }
+
+    public Long getUpdatedBy() { return updatedBy; }
+    public void setUpdatedBy(Long updatedBy) { this.updatedBy = updatedBy; }
 }

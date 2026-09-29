@@ -15,15 +15,17 @@ export function setupAppShell() {
     updateTopNavLinks(session);
   });
 
-  // Health poll
-  setInterval(async () => {
+  // Immediate health check and ongoing poll
+  const updateHealth = async () => {
     const res = await api.checkHealth();
     const badge = document.getElementById('healthBadge');
     if (badge) {
       badge.className = `health-badge ${res.ok ? 'online' : 'offline'}`;
       badge.innerHTML = `<i></i><span>${res.ok ? 'API Online' : 'Offline Mode'}</span>`;
     }
-  }, 10000);
+  };
+  updateHealth();
+  setInterval(updateHealth, 10000);
 
   // Initialize event selectors
   initEventSelectors();
@@ -179,6 +181,10 @@ function updateMobileNavUI(session) {
     routes.push({ label: 'Event Details', href: `#/events/${currentEventId}`, roleReq: null });
   }
 
+  if (session && session.token && (session.role === 'PARTICIPANT' || !session.role || session.role === 'ADMIN')) {
+    routes.push({ label: '👤 My Profile & Certificates', href: '#/profile', roleReq: null });
+  }
+
   linksContainer.innerHTML = routes
     .filter(r => !r.roleReq || checkRouteAccess(r.roleReq).allowed)
     .map(r => `
@@ -248,10 +254,17 @@ function updateSidebarAuthUI(session) {
   if (!userBox) return;
 
   if (session && session.token) {
+    const roleActionBtn = session.role === 'ORGANIZER' 
+      ? `<a class="btn ghost sm" href="#/dashboard" style="margin-top:10px;width:100%;text-align:center;display:block">⚙️ Organizer Dashboard</a>`
+      : session.role === 'JUDGE'
+      ? `<a class="btn ghost sm" href="#/judge" style="margin-top:10px;width:100%;text-align:center;display:block">⚖️ Judge Queue</a>`
+      : '';
+
     userBox.innerHTML = `
       <b>${escapeHtml(session.name)}</b>
       <span class="rolebadge ${session.role}">${session.role}</span>
-      <button class="btn ghost sm" id="sidebarLogoutBtn" type="button" style="margin-top:12px;width:100%">Sign Out</button>
+      ${roleActionBtn}
+      <button class="btn ghost sm" id="sidebarLogoutBtn" type="button" style="margin-top:8px;width:100%">Sign Out</button>
     `;
     document.getElementById('sidebarLogoutBtn')?.addEventListener('click', () => {
       authStore.clearSession();
@@ -290,6 +303,10 @@ function updateSidebarLinks(session) {
         // Only organizers (and admins) see the dashboard
         link.style.display = (role === 'ORGANIZER' || role === 'ADMIN' || !role) ? '' : 'none';
         break;
+      case 'profile':
+        // Profile & Certificates is strictly for participants (who receive certificates)
+        link.style.display = (session && session.token && (role === 'PARTICIPANT' || role === 'ADMIN' || !role)) ? '' : 'none';
+        break;
       default:
         // Gallery, Results — always visible
         link.style.display = '';
@@ -316,6 +333,9 @@ function updateTopNavLinks(session) {
         break;
       case 'dashboard':
         link.style.display = (role === 'ORGANIZER' || role === 'ADMIN' || !role) ? '' : 'none';
+        break;
+      case 'profile':
+        link.style.display = (session && session.token && (role === 'PARTICIPANT' || role === 'ADMIN' || !role)) ? '' : 'none';
         break;
       default:
         link.style.display = '';

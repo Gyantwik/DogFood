@@ -78,4 +78,21 @@ public class ExportController {
                 .contentType(MediaType.parseMediaType("text/csv"))
                 .body(csvData);
     }
+
+    @GetMapping({"/pairwise", "/pairwise.csv"})
+    public ResponseEntity<byte[]> exportPairwise(
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        authorizationPolicy.requireEventRole(currentUser.getId(), eventId, RoleType.ORGANIZER);
+        byte[] csvData = csvExportService.exportPairwiseResultsCsv(eventId);
+        auditLogService.logAction(currentUser.getId(), eventId, "EXPORT_CSV", "Exported pairwise rankings CSV for event " + eventId);
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"event_" + eventId + "_pairwise_rankings.csv\"")
+                .contentType(MediaType.parseMediaType("text/csv"))
+                .body(csvData);
+    }
 }

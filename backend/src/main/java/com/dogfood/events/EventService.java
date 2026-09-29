@@ -97,6 +97,7 @@ public class EventService {
         event.setVotingEnd(request.getVotingEnd());
         event.setVotingEnabled(request.getVotingEnabled() != null ? request.getVotingEnabled() : false);
         event.setVotingAccessMode(request.getVotingAccessMode() != null ? request.getVotingAccessMode().toUpperCase() : "OPEN");
+        event.setPairwiseJudgingEnabled(request.getPairwiseJudgingEnabled() != null ? request.getPairwiseJudgingEnabled() : false);
         event.setResultsPublishAt(request.getResultsPublishAt());
         event = eventRepository.save(event);
 
@@ -210,6 +211,7 @@ public class EventService {
         response.setVotingEnd(event.getVotingEnd());
         response.setVotingEnabled(event.getVotingEnabled());
         response.setVotingAccessMode(event.getVotingAccessMode());
+        response.setPairwiseJudgingEnabled(event.getPairwiseJudgingEnabled());
         response.setResultsPublishAt(event.getResultsPublishAt());
         return response;
     }
@@ -295,6 +297,7 @@ public class EventService {
         if (request.getVotingEnd() != null) event.setVotingEnd(request.getVotingEnd());
         if (request.getVotingEnabled() != null) event.setVotingEnabled(request.getVotingEnabled());
         if (request.getVotingAccessMode() != null && !request.getVotingAccessMode().isBlank()) event.setVotingAccessMode(request.getVotingAccessMode().toUpperCase());
+        if (request.getPairwiseJudgingEnabled() != null) event.setPairwiseJudgingEnabled(request.getPairwiseJudgingEnabled());
         if (request.getResultsPublishAt() != null) event.setResultsPublishAt(request.getResultsPublishAt());
         if (request.getStatus() != null && !request.getStatus().isBlank()) event.setStatus(request.getStatus().toUpperCase());
 

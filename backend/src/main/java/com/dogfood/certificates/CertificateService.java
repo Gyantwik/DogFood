@@ -217,6 +217,29 @@ public class CertificateService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public List<CertificateDto> listCertificatesForUser(Long userId) {
+        return certificateRepository.findByRecipientId(userId).stream()
+                .map(cert -> {
+                    String eventName = eventRepository.findById(cert.getEventId())
+                            .map(Event::getName)
+                            .orElse("Event " + cert.getEventId());
+                    return new CertificateDto(
+                            cert.getCertificateId(),
+                            cert.getEventId(),
+                            eventName,
+                            cert.getRecipientId(),
+                            cert.getRecipientName(),
+                            cert.getRecipientEmail(),
+                            cert.getRecipientType(),
+                            cert.getAwardTitle(),
+                            cert.getVerificationHash(),
+                            cert.getCreatedAt()
+                    );
+                })
+                .collect(Collectors.toList());
+    }
+
     public static String computeSha256(String input) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

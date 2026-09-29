@@ -468,11 +468,27 @@ class ApiClient {
     return this.request(path);
   }
 
-  async testWebhook(eventId, webhookId) {
+  async testWebhook(eventId, webhookId, eventType = 'test.ping') {
     if (!eventId || !webhookId) throw new Error('Event ID and Webhook ID are required');
-    return this.request(`/api/events/${eventId}/webhooks/${webhookId}/test`, {
+    const q = eventType ? `?event=${encodeURIComponent(eventType)}` : '';
+    return this.request(`/api/events/${eventId}/webhooks/${webhookId}/test${q}`, {
       method: 'POST'
     });
+  }
+
+  async retryWebhookDelivery(eventId, webhookId, deliveryId) {
+    if (!eventId || !webhookId || !deliveryId) throw new Error('Event ID, Webhook ID, and Delivery ID are required');
+    return this.request(`/api/events/${eventId}/webhooks/${webhookId}/deliveries/${deliveryId}/retry`, {
+      method: 'POST'
+    });
+  }
+
+  async getReceivedWebhooks() {
+    return this.request('/api/webhooks/received', { skipAuth: true });
+  }
+
+  async clearReceivedWebhooks() {
+    return this.request('/api/webhooks/received', { method: 'DELETE', skipAuth: true });
   }
 
   // T4 — Certificates & Verifications
@@ -489,6 +505,11 @@ class ApiClient {
     });
   }
 
+  async getSampleJudgeRecord(eventId, judgeId) {
+    const url = `/api/verify/judge-record/sample?eventId=${encodeURIComponent(eventId || 1)}${judgeId ? `&judgeId=${encodeURIComponent(judgeId)}` : ''}`;
+    return this.request(url, { skipAuth: true });
+  }
+
   async generateCertificates(eventId) {
     if (!eventId) throw new Error('Event ID is required');
     return this.request(`/api/events/${eventId}/certificates/generate`, {
@@ -501,9 +522,48 @@ class ApiClient {
     return this.request(`/api/events/${eventId}/certificates`);
   }
 
+  async getMyCertificates() {
+    return this.request('/api/certificates/me');
+  }
+
   async getMyJudgeRecord(eventId) {
     if (!eventId) throw new Error('Event ID is required');
     return this.request(`/api/events/${eventId}/judges/me/record`);
+  }
+
+  // T2 — Judging Operations & Transparency
+  async getJudgeCoverage(eventId) {
+    if (!eventId) throw new Error('Event ID is required');
+    return this.request(`/api/events/${eventId}/judging/coverage`);
+  }
+
+  async getJudgeWorkload(eventId) {
+    if (!eventId) throw new Error('Event ID is required');
+    return this.request(`/api/events/${eventId}/judging/workload`);
+  }
+
+  async getScoringHealth(eventId) {
+    if (!eventId) throw new Error('Event ID is required');
+    return this.request(`/api/events/${eventId}/judging/scoring-health`);
+  }
+
+  async getNormalizationAnalysis(eventId) {
+    if (!eventId) throw new Error('Event ID is required');
+    return this.request(`/api/events/${eventId}/judging/normalization-analysis`);
+  }
+
+  async getNormalizationProof(eventId) {
+    if (!eventId) throw new Error('Event ID is required');
+    return this.request(`/api/events/${eventId}/judging/normalization-proof`);
+  }
+
+  // T1 — Submission Readiness & Eligibility
+  async getSubmissionReadiness(eventId, submissionId = null) {
+    if (!eventId) throw new Error('Event ID is required');
+    const path = submissionId
+      ? `/api/events/${eventId}/submissions/${submissionId}/readiness`
+      : `/api/events/${eventId}/submissions/readiness`;
+    return this.request(path);
   }
 
   // T4 — Bulk Data & Audit
@@ -520,9 +580,81 @@ class ApiClient {
     });
   }
 
+  async cloneEvent(eventId, cloneOptions = {}) {
+    if (!eventId) throw new Error('Event ID is required');
+    return this.request(`/api/events/${eventId}/clone`, {
+      method: 'POST',
+      body: JSON.stringify(cloneOptions)
+    });
+  }
+
   async getAuditLogs(eventId) {
     if (!eventId) throw new Error('Event ID is required');
     return this.request(`/api/events/${eventId}/audit-logs`);
+  }
+
+  async exportAuditLogsCsv(eventId) {
+    if (!eventId) throw new Error('Event ID is required');
+    const token = authStore.getToken();
+    const url = `${this.baseUrl}/api/events/${eventId}/audit-logs/export`;
+    const res = await fetch(url, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    });
+    if (!res.ok) {
+      throw new Error(`Export failed: HTTP ${res.status}`);
+    }
+    return await res.text();
+  }
+
+  // Pairwise Judging Mode endpoints
+  async togglePairwiseMode(eventId, enabled = true) {
+    if (!eventId) throw new Error('Event ID is required');
+    return this.request(`/api/events/${eventId}/pairwise/toggle`, {
+      method: 'POST',
+      body: JSON.stringify({ enabled })
+    });
+  }
+
+  async getNextPair(eventId, trackId = null) {
+    if (!eventId) throw new Error('Event ID is required');
+    const q = trackId ? `?trackId=${trackId}` : '';
+    return this.request(`/api/events/${eventId}/judging/pairwise/next${q}`);
+  }
+
+  async submitPairwiseComparison(eventId, payload) {
+    if (!eventId) throw new Error('Event ID is required');
+    return this.request(`/api/events/${eventId}/judging/pairwise`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  }
+
+  async getJudgePairwiseProgress(eventId) {
+    if (!eventId) throw new Error('Event ID is required');
+    return this.request(`/api/events/${eventId}/judging/pairwise/progress`);
+  }
+
+  async getPairwiseResults(eventId) {
+    if (!eventId) throw new Error('Event ID is required');
+    return this.request(`/api/events/${eventId}/judging/pairwise/results`);
+  }
+
+  async getPairwiseCoverage(eventId) {
+    if (!eventId) throw new Error('Event ID is required');
+    return this.request(`/api/events/${eventId}/judging/pairwise/coverage`);
+  }
+
+  async getPairwiseHistory(eventId, judgeId = null) {
+    if (!eventId) throw new Error('Event ID is required');
+    const q = judgeId ? `?judgeId=${judgeId}` : '';
+    return this.request(`/api/events/${eventId}/judging/pairwise/history${q}`);
+  }
+
+  async exportPairwiseCsv(eventId) {
+    if (!eventId) throw new Error('Event ID is required');
+    return this.downloadCSV(`/api/events/${eventId}/export/pairwise`, `pairwise_results_event_${eventId}.csv`);
   }
 }
 

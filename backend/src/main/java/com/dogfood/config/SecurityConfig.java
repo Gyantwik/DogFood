@@ -56,8 +56,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/health/**", "/api/auth/signup", "/api/auth/login", "/api/auth/register").permitAll()
                         // Public verification & certificates
                         .requestMatchers("/api/certificates/**", "/api/verify/**").permitAll()
+                        // Public webhook receiver & test sink endpoints
+                        .requestMatchers("/api/webhooks/**").permitAll()
                         // Public voting & comments POST endpoints
-                        .requestMatchers(HttpMethod.POST, "/api/events/*/vote", "/api/events/*/voting/vote").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/events/*/vote", "/api/events/*/voting/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/events/*/submissions/*/comments").permitAll()
                         // Sensitive event GET subpaths requiring authentication before broad permitAll
                         .requestMatchers(HttpMethod.GET, "/api/events/*/score-distribution").authenticated()
@@ -65,12 +67,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/events/*/dashboard").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/events/*/assignments/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/events/*/judges/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/events/*/judging/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/events/*/scores/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/events/*/submissions/mine").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/events/*/submissions/draft").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/events/*/draft").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/events/*/audit-logs").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/events/*/webhooks/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/events/*/pairwise/**").authenticated()
                         // Public GET endpoints for visitor: gallery, public event details, public team info, voting, comments, certificates
                         .requestMatchers(HttpMethod.GET, "/api/events/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/teams/**").permitAll()

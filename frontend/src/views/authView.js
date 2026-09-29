@@ -62,7 +62,35 @@ export function renderAuth(container, mode = 'login') {
       <div style="margin-top:18px;text-align:center;font-size:0.92rem;color:var(--mute)">
         ${isLogin ? `Don't have an account? <a href="#/signup" style="color:var(--c);font-weight:700">Sign up</a>` : `Already have an account? <a href="#/login" style="color:var(--c);font-weight:700">Sign in</a>`}
       </div>
+
+      <!-- Visitor / Voter Quick Sign-In Option -->
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);text-align:center">
+        <span style="font-size:0.84rem;color:var(--mute);display:block;margin-bottom:8px">Casting a community vote? Sign in as a public voter:</span>
+        <button class="btn ghost sm" id="btnOpenVisitorLogin" type="button" style="width:100%;border:1px solid rgba(55,224,255,0.3);color:var(--c)">
+          🌐 Quick Community Voter Session (No Account Needed)
+        </button>
+      </div>
     </form>
+
+    <!-- Dedicated Visitor Session Form (Hidden by default) -->
+    <div id="visitorSessionLoginForm" style="display:none;padding-top:14px;border-top:1px solid var(--line);margin-top:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <b style="font-size:0.95rem;color:#F8FAFC">🌐 Public Community Voter Session</b>
+        <button class="btn ghost sm" id="btnCloseVisitorLogin" type="button" style="font-size:0.75rem;padding:2px 8px">&times; Cancel</button>
+      </div>
+      <p style="font-size:0.82rem;color:var(--mute);margin:0 0 12px;line-height:1.4">
+        Start an anti-Sybil voter session. Protected by browser session token, duplicate prevention, and IP rate limiting.
+      </p>
+      <form id="visitorVoterAuthForm" style="display:grid;gap:10px">
+        <div class="fld">
+          <label for="visitorAliasInput">Voter Alias (Optional)</label>
+          <input id="visitorAliasInput" type="text" placeholder="e.g. Jordan Lee" style="height:38px;padding:0 10px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);color:#FFF">
+        </div>
+        <button class="btn main sm" type="submit" id="btnSubmitVisitorSession" style="background:#2563EB;color:#FFF;font-weight:600;border:1px solid #3B82F6">
+          Start Voter Session &rarr;
+        </button>
+      </form>
+    </div>
 
     <!-- Developer Test Accounts Collapsible Section -->
     <details class="dev-accounts-accordion" style="margin-top:24px;border-top:1px solid var(--line);padding-top:14px">
@@ -135,7 +163,8 @@ export function renderAuth(container, mode = 'login') {
         const email = document.getElementById('authEmail').value.trim();
         const password = document.getElementById('authPass').value;
         identifier = username;
-        res = await api.signup({ username, email, password });
+        const payload = { username, email, password };
+        res = await api.signup(payload);
       }
 
       const token = res.token || res.accessToken || res.jwt;
@@ -197,5 +226,40 @@ export function renderAuth(container, mode = 'login') {
       errEl.textContent = err.message || 'Authentication failed. Please check your credentials.';
       btn.disabled = false;
     }
+  });
+
+  // Bind Visitor Session Login Form
+  const visitorSessionSection = document.getElementById('visitorSessionLoginForm');
+  const btnOpenVisitor = document.getElementById('btnOpenVisitorLogin');
+  const btnCloseVisitor = document.getElementById('btnCloseVisitorLogin');
+  const visitorAuthForm = document.getElementById('visitorVoterAuthForm');
+
+  btnOpenVisitor?.addEventListener('click', () => {
+    if (visitorSessionSection) visitorSessionSection.style.display = 'block';
+    document.getElementById('visitorAliasInput')?.focus();
+  });
+
+  btnCloseVisitor?.addEventListener('click', () => {
+    if (visitorSessionSection) visitorSessionSection.style.display = 'none';
+  });
+
+  visitorAuthForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const aliasVal = document.getElementById('visitorAliasInput')?.value?.trim() || 'Community Voter';
+    const cleanId = Math.random().toString(36).substring(2, 10);
+    const sessionToken = 'token:' + cleanId + Date.now().toString(36);
+    localStorage.setItem('dogfood_voter_session', sessionToken);
+
+    authStore.setSession({
+      token: 'visitor-' + sessionToken,
+      role: 'VISITOR',
+      name: aliasVal,
+      username: aliasVal.toLowerCase().replace(/\s+/g, ''),
+      email: `${cleanId}@voter.local`,
+      rolesByEvent: {}
+    });
+
+    notify(`Signed in as community voter: ${aliasVal}`, 'success');
+    window.location.hash = '#community-voting';
   });
 }

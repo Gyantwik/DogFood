@@ -1931,3 +1931,65 @@ body.embed-mode .content {
   margin: 0 !important;
 }
 
+/* ==========================================================================
+   Organizer Interactive Command Dashboard Tabs & UI (Clean & Simple)
+   ========================================================================== */
+.org-nav-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 16px 0 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.org-nav-tabs::-webkit-scrollbar {
+  height: 3px;
+}
+.org-nav-tabs::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+.org-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: #94A3B8;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.org-tab-btn:hover {
+  color: #F1F5F9;
+  background: rgba(255, 255, 255, 0.04);
+}
+.org-tab-btn.active {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #FFFFFF !important;
+  font-weight: 600;
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: none !important;
+}
+.org-tab-pane {
+  animation: fadeIn 0.18s ease-out;
+}
+.org-quick-tile {
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.02) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border-radius: 12px !important;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.org-quick-tile:hover {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+

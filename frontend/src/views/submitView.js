@@ -50,6 +50,7 @@ export function renderSubmit(container, eventId = null) {
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
         <span class="bdg ok" id="deadlinePill">Checking deadline...</span>
         <span class="bdg" id="subStatusPill" style="display:none">DRAFT</span>
+        <span class="bdg" id="subVersionPill" style="display:none">v1</span>
       </div>
       <h2 class="vt">Submit your project</h2>
       <p class="vs" id="submitSubtitle">Save drafts anytime. Once submitted, you can continue updating your build until the deadline.</p>
@@ -141,6 +142,29 @@ export function renderSubmit(container, eventId = null) {
         <div id="customQuestionsList" style="display:grid;gap:14px"></div>
       </div>
 
+      <!-- Pre-Flight Submission Readiness Checklist Card -->
+      <div id="readinessCard" style="margin-top:24px;padding:20px;border-radius:12px;background:var(--glass2);border:1px solid var(--line)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:1.1rem">📋</span>
+            <b style="font-size:0.95rem">Pre-Flight Submission Readiness Checklist</b>
+          </div>
+          <button type="button" class="btn ghost sm" id="checkServerReadinessBtn" style="font-size:0.75rem;padding:3px 8px">⚡ Server Pre-Flight Check</button>
+        </div>
+        <div id="readinessList" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;font-size:0.84rem">
+          <div id="chkTitle" style="display:flex;align-items:center;gap:8px;color:var(--mute)"><span>○</span> Project Title</div>
+          <div id="chkTagline" style="display:flex;align-items:center;gap:8px;color:var(--mute)"><span>○</span> Tagline</div>
+          <div id="chkTrack" style="display:flex;align-items:center;gap:8px;color:var(--mute)"><span>○</span> Track Selection</div>
+          <div id="chkRepo" style="display:flex;align-items:center;gap:8px;color:var(--mute)"><span>○</span> Repository URL</div>
+          <div id="chkDesc" style="display:flex;align-items:center;gap:8px;color:var(--mute)"><span>○</span> Description</div>
+          <div id="chkWindow" style="display:flex;align-items:center;gap:8px;color:var(--mute)"><span>○</span> Window Open</div>
+          <div id="chkReg" style="display:flex;align-items:center;gap:8px;color:var(--mute)"><span>○</span> Registered</div>
+        </div>
+        <div id="readinessStatusMsg" style="margin-top:12px;font-size:0.82rem;color:var(--mute);padding-top:8px;border-top:1px solid rgba(255,255,255,0.06)">
+          Fill in the required fields above to complete pre-flight readiness.
+        </div>
+      </div>
+
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:28px;padding-top:20px;border-top:1px solid var(--line);flex-wrap:wrap;gap:12px">
         <button class="btn ghost sm" id="saveDraftBtn" type="button">Save draft</button>
         <button class="btn main" id="submitProjectBtn" type="submit">Submit project &rarr;</button>
@@ -153,16 +177,75 @@ export function renderSubmit(container, eventId = null) {
   const form = document.getElementById('submissionForm');
   const saveDraftBtn = document.getElementById('saveDraftBtn');
   let currentSubmissionId = null;
+  let currentVersionNumber = 1;
+  let countdownTimerId = null;
   let customQuestions = [];
   let userTeam = null;
   let isTeamLeader = true;
+  let isWindowClosed = false;
+  let isWindowNotStarted = false;
 
   const draftKey = `dogfood_draft_${eventId}`;
+
+  function updateReadinessUI() {
+    const title = document.getElementById('pTitle')?.value?.trim() || '';
+    const tagline = document.getElementById('pTagline')?.value?.trim() || '';
+    const track = document.getElementById('pTrack')?.value?.trim() || '';
+    const repo = document.getElementById('pRepo')?.value?.trim() || '';
+    const desc = document.getElementById('pDesc')?.value?.trim() || '';
+
+    const hasTitle = title.length >= 3;
+    const hasTagline = tagline.length >= 5;
+    const hasTrack = Boolean(track);
+    const hasRepo = Boolean(repo && (repo.startsWith('http://') || repo.startsWith('https://')));
+    const hasDesc = desc.length >= 10;
+    const isWindowOpen = !isWindowClosed && !isWindowNotStarted;
+    const isRegistered = authStore.isRegisteredForEvent(eventId) || Boolean(userTeam);
+
+    setItemState('chkTitle', hasTitle, 'Project Title');
+    setItemState('chkTagline', hasTagline, 'Tagline');
+    setItemState('chkTrack', hasTrack, `Track (${track || 'None'})`);
+    setItemState('chkRepo', hasRepo, 'Repository URL');
+    setItemState('chkDesc', hasDesc, 'Description');
+    setItemState('chkWindow', isWindowOpen, isWindowOpen ? 'Window Open' : (isWindowClosed ? 'Window Closed' : 'Not Started'));
+    setItemState('chkReg', isRegistered, isRegistered ? 'Registered' : 'Registration Verified');
+
+    const allRequiredMet = hasTitle && hasTagline && hasTrack && hasRepo && isWindowOpen;
+    const statusMsg = document.getElementById('readinessStatusMsg');
+    if (statusMsg) {
+      if (allRequiredMet) {
+        statusMsg.innerHTML = '<span style="color:var(--ok);font-weight:600">✓ All required criteria satisfied. Ready for submission.</span>';
+      } else {
+        const missing = [];
+        if (!hasTitle) missing.push('Title (min 3 chars)');
+        if (!hasTagline) missing.push('Tagline (min 5 chars)');
+        if (!hasTrack) missing.push('Track');
+        if (!hasRepo) missing.push('Valid Git Repo URL (http/https)');
+        if (!isWindowOpen) missing.push('Open Submission Window');
+        statusMsg.innerHTML = `<span style="color:var(--warn)">Pending requirements: ${missing.join(', ')}</span>`;
+      }
+    }
+  }
+
+  function setItemState(id, isMet, label) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (isMet) {
+      el.style.color = 'var(--ok)';
+      el.innerHTML = `<span style="color:var(--ok);font-weight:700">✓</span> ${escapeHtml(label)}`;
+    } else {
+      el.style.color = 'var(--mute)';
+      el.innerHTML = `<span>○</span> ${escapeHtml(label)}`;
+    }
+  }
 
   function populateFields(d) {
     if (!d) return;
     if (d.id || d.submissionId || d.projectId) {
       currentSubmissionId = d.id || d.submissionId || d.projectId;
+    }
+    if (d.versionNumber) {
+      currentVersionNumber = d.versionNumber;
     }
     const pTitle = document.getElementById('pTitle');
     const pTagline = document.getElementById('pTagline');
@@ -399,12 +482,54 @@ export function renderSubmit(container, eventId = null) {
     const subStart = ev?.submissionStart ? new Date(ev.submissionStart) : (ev?.registrationEnd ? new Date(ev.registrationEnd) : null);
     const isClosed = ev?.status === 'CLOSED' || (deadline && now > deadline);
     const notStartedYet = subStart && now < subStart;
+    isWindowClosed = isClosed;
+    isWindowNotStarted = notStartedYet;
+
+    function updateCountdown() {
+      const curNow = new Date();
+      if (!deadline) {
+        if (deadlinePill) {
+          deadlinePill.className = 'bdg ok';
+          deadlinePill.textContent = 'SUBMISSIONS OPEN';
+        }
+        return;
+      }
+      const diffMs = deadline - curNow;
+      if (diffMs <= 0 || ev?.status === 'CLOSED') {
+        isWindowClosed = true;
+        if (deadlinePill) {
+          deadlinePill.className = 'bdg bad';
+          deadlinePill.textContent = '🔴 SUBMISSIONS CLOSED';
+        }
+        if (countdownTimerId) clearInterval(countdownTimerId);
+        updateReadinessUI();
+        return;
+      }
+      const totalSecs = Math.floor(diffMs / 1000);
+      const days = Math.floor(totalSecs / 86400);
+      const hours = Math.floor((totalSecs % 86400) / 3600);
+      const mins = Math.floor((totalSecs % 3600) / 60);
+      const secs = totalSecs % 60;
+
+      if (diffMs < 2 * 60 * 60 * 1000) {
+        if (deadlinePill) {
+          deadlinePill.className = 'bdg warn';
+          deadlinePill.textContent = `🟡 CLOSING SOON: ${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+      } else {
+        if (deadlinePill) {
+          deadlinePill.className = 'bdg ok';
+          const rem = days > 0 ? `${days}d ${hours}h left` : `${hours}h ${mins}m left`;
+          deadlinePill.textContent = `🟢 OPEN · ${rem}`;
+        }
+      }
+    }
 
     if (isClosed) {
       isLocked = true;
       if (deadlinePill) {
         deadlinePill.className = 'bdg bad';
-        deadlinePill.textContent = 'SUBMISSIONS CLOSED';
+        deadlinePill.textContent = '🔴 SUBMISSIONS CLOSED';
       }
       if (serverSub && serverSub.status === 'SUBMITTED') {
         if (subPill) {
@@ -412,9 +537,15 @@ export function renderSubmit(container, eventId = null) {
           subPill.className = 'bdg ok';
           subPill.style.display = 'inline-block';
         }
+        const verPill = document.getElementById('subVersionPill');
+        if (verPill) {
+          verPill.textContent = `v${currentVersionNumber}`;
+          verPill.className = 'bdg bad';
+          verPill.style.display = 'inline-block';
+        }
         if (submitSubtitle) {
           submitSubtitle.textContent = deadline
-            ? `Deadline passed on ${deadline.toUTCString()}. This submission is locked and can no longer be edited.`
+            ? `Deadline passed on ${deadline.toUTCString()}. Version ${currentVersionNumber} is locked and can no longer be edited.`
             : 'Submissions are currently closed for this hackathon.';
         }
       } else {
@@ -447,10 +578,8 @@ export function renderSubmit(container, eventId = null) {
       }
     } else {
       // SUBMISSION WINDOW IS ACTIVE (Before deadline)
-      if (deadlinePill) {
-        deadlinePill.className = 'bdg ok';
-        deadlinePill.textContent = 'SUBMISSIONS OPEN';
-      }
+      updateCountdown();
+      countdownTimerId = setInterval(updateCountdown, 1000);
 
       let timeRemainingStr = '';
       if (deadline) {
@@ -493,8 +622,14 @@ export function renderSubmit(container, eventId = null) {
             subPill.className = 'bdg ok';
             subPill.style.display = 'inline-block';
           }
+          const verPill = document.getElementById('subVersionPill');
+          if (verPill) {
+            verPill.textContent = `v${currentVersionNumber}`;
+            verPill.className = 'bdg';
+            verPill.style.display = 'inline-block';
+          }
           if (submitSubtitle) {
-            submitSubtitle.textContent = `Submitted on ${new Date(serverSub.updatedAt || serverSub.createdAt).toLocaleString()}. You can still edit and update your submitted project until the deadline${timeRemainingStr ? ` (${timeRemainingStr})` : ''}.`;
+            submitSubtitle.textContent = `Submitted on ${new Date(serverSub.updatedAt || serverSub.createdAt).toLocaleString()}. You can still edit and update your submitted project until the deadline${timeRemainingStr ? ` (${timeRemainingStr})` : ''}. Editing Version ${currentVersionNumber + 1} (preserving project URL and ID #${currentSubmissionId}).`;
           }
           if (submitBtn) {
             submitBtn.textContent = 'Update submission \u2192';
@@ -508,6 +643,12 @@ export function renderSubmit(container, eventId = null) {
             subPill.textContent = 'DRAFT';
             subPill.className = 'bdg warn';
             subPill.style.display = 'inline-block';
+          }
+          const verPill = document.getElementById('subVersionPill');
+          if (verPill) {
+            verPill.textContent = `v${currentVersionNumber}`;
+            verPill.className = 'bdg';
+            verPill.style.display = 'inline-block';
           }
           if (submitSubtitle) {
             submitSubtitle.textContent = `Draft saved on server. You can edit and submit your project before the deadline${timeRemainingStr ? ` (${timeRemainingStr})` : ''}.`;
@@ -531,6 +672,39 @@ export function renderSubmit(container, eventId = null) {
           }
         }
       }
+    }
+
+    // Attach input listeners for live readiness checklist feedback
+    ['pTitle', 'pTagline', 'pTrack', 'pRepo', 'pDesc'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('input', updateReadinessUI);
+        el.addEventListener('change', updateReadinessUI);
+      }
+    });
+    updateReadinessUI();
+
+    // Wire up Server Pre-Flight Check button
+    const serverReadinessBtn = document.getElementById('checkServerReadinessBtn');
+    if (serverReadinessBtn) {
+      serverReadinessBtn.addEventListener('click', async () => {
+        serverReadinessBtn.disabled = true;
+        serverReadinessBtn.textContent = 'Checking...';
+        try {
+          const check = await api.getSubmissionReadiness(eventId, currentSubmissionId);
+          const data = check?.data || check;
+          if (data && data.ready) {
+            notify('Server Readiness Check: 100% Ready for evaluation!', 'success');
+          } else {
+            notify(`Server Readiness Check: ${data?.message || 'Missing required fields'}`, 'warn');
+          }
+        } catch (err) {
+          notify(`Readiness check error: ${err.message}`, 'error');
+        } finally {
+          serverReadinessBtn.disabled = false;
+          serverReadinessBtn.textContent = '⚡ Server Pre-Flight Check';
+        }
+      });
     }
   })();
 
@@ -589,6 +763,7 @@ export function renderSubmit(container, eventId = null) {
       }
       const saved = res?.data || res;
       if (saved && saved.id) currentSubmissionId = saved.id;
+      if (saved && saved.versionNumber) currentVersionNumber = saved.versionNumber;
 
       if (warningBanner) warningBanner.style.display = 'none';
       const subPill = document.getElementById('subStatusPill');
@@ -597,8 +772,15 @@ export function renderSubmit(container, eventId = null) {
         subPill.className = 'bdg warn';
         subPill.style.display = 'inline-block';
       }
+      const verPill = document.getElementById('subVersionPill');
+      if (verPill) {
+        verPill.textContent = `v${currentVersionNumber}`;
+        verPill.className = 'bdg';
+        verPill.style.display = 'inline-block';
+      }
 
       localStorage.setItem(draftKey, JSON.stringify(payload));
+      updateReadinessUI();
       notify('Draft successfully saved to server!', 'success');
     } catch (err) {
       // Local backup in case server rejected
@@ -631,6 +813,11 @@ export function renderSubmit(container, eventId = null) {
       if (data && data.id) {
         currentSubmissionId = data.id;
       }
+      if (data && data.versionNumber) {
+        currentVersionNumber = data.versionNumber;
+      } else {
+        currentVersionNumber += 1;
+      }
       localStorage.removeItem(draftKey);
 
       const subPill = document.getElementById('subStatusPill');
@@ -639,9 +826,15 @@ export function renderSubmit(container, eventId = null) {
         subPill.className = 'bdg ok';
         subPill.style.display = 'inline-block';
       }
+      const submitVerPill = document.getElementById('subVersionPill');
+      if (submitVerPill) {
+        submitVerPill.textContent = `v${currentVersionNumber}`;
+        submitVerPill.className = 'bdg';
+        submitVerPill.style.display = 'inline-block';
+      }
       const submitSubtitle = document.getElementById('submitSubtitle');
       if (submitSubtitle) {
-        submitSubtitle.textContent = `Submitted on ${new Date().toLocaleString()}. You can still edit and update your submitted project until the deadline.`;
+        submitSubtitle.textContent = `Submitted on ${new Date().toLocaleString()}. You can still edit and update your submitted project until the deadline. Editing Version ${currentVersionNumber + 1} (preserving project URL and ID #${currentSubmissionId}).`;
       }
       const saveDraftBtn = document.getElementById('saveDraftBtn');
       if (saveDraftBtn) {
@@ -649,7 +842,8 @@ export function renderSubmit(container, eventId = null) {
       }
       submitBtn.textContent = 'Update submission \u2192';
       submitBtn.disabled = false;
-      notify('Project successfully submitted! You can continue making updates until the deadline.', 'success');
+      updateReadinessUI();
+      notify(`Project updated to version ${currentVersionNumber} (preserving project identity and public URL)`, 'success');
     } catch (err) {
       notify(`Submission failed: ${err.message}`, 'error');
       submitBtn.disabled = false;

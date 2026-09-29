@@ -36,6 +36,8 @@ public class SubmissionResponse {
 
     private Instant createdAt;
     private Instant updatedAt;
+    private Integer versionNumber;
+    private Long updatedBy;
 
     public SubmissionResponse() {}
 
@@ -147,4 +149,10 @@ public class SubmissionResponse {
 
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
+
+    public Integer getVersionNumber() { return versionNumber != null ? versionNumber : 1; }
+    public void setVersionNumber(Integer versionNumber) { this.versionNumber = versionNumber; }
+
+    public Long getUpdatedBy() { return updatedBy; }
+    public void setUpdatedBy(Long updatedBy) { this.updatedBy = updatedBy; }
 }

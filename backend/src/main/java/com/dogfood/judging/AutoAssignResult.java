@@ -12,10 +12,17 @@ public class AutoAssignResult {
     private int count;
     private String message;
 
+    private int projectsFullyCovered;
+    private int projectsUnderCovered;
+    private int assignmentsCreated;
+    private int assignmentsSkipped;
+    private List<String> skipReasons = new ArrayList<>();
+
     public AutoAssignResult() {}
 
     public AutoAssignResult(int totalAssignmentsCreated, int submissionsCovered, int judgesUtilized, int unassignedSubmissions, List<String> warnings) {
         this.totalAssignmentsCreated = totalAssignmentsCreated;
+        this.assignmentsCreated = totalAssignmentsCreated;
         this.submissionsCovered = submissionsCovered;
         this.judgesUtilized = judgesUtilized;
         this.unassignedSubmissions = unassignedSubmissions;
@@ -27,6 +34,7 @@ public class AutoAssignResult {
     public int getTotalAssignmentsCreated() { return totalAssignmentsCreated; }
     public void setTotalAssignmentsCreated(int totalAssignmentsCreated) {
         this.totalAssignmentsCreated = totalAssignmentsCreated;
+        this.assignmentsCreated = totalAssignmentsCreated;
         this.count = totalAssignmentsCreated;
     }
 
@@ -46,8 +54,28 @@ public class AutoAssignResult {
     public void setCount(int count) {
         this.count = count;
         this.totalAssignmentsCreated = count;
+        this.assignmentsCreated = count;
     }
 
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
+
+    public int getProjectsFullyCovered() { return projectsFullyCovered; }
+    public void setProjectsFullyCovered(int projectsFullyCovered) { this.projectsFullyCovered = projectsFullyCovered; }
+
+    public int getProjectsUnderCovered() { return projectsUnderCovered; }
+    public void setProjectsUnderCovered(int projectsUnderCovered) { this.projectsUnderCovered = projectsUnderCovered; }
+
+    public int getAssignmentsCreated() { return assignmentsCreated; }
+    public void setAssignmentsCreated(int assignmentsCreated) {
+        this.assignmentsCreated = assignmentsCreated;
+        this.totalAssignmentsCreated = assignmentsCreated;
+        this.count = assignmentsCreated;
+    }
+
+    public int getAssignmentsSkipped() { return assignmentsSkipped; }
+    public void setAssignmentsSkipped(int assignmentsSkipped) { this.assignmentsSkipped = assignmentsSkipped; }
+
+    public List<String> getSkipReasons() { return skipReasons; }
+    public void setSkipReasons(List<String> skipReasons) { this.skipReasons = skipReasons; }
 }

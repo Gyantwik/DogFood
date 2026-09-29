@@ -182,9 +182,11 @@ public class SubmissionService {
         submission.setDemoVideoUrl(request.getDemoVideoUrl());
         submission.setLiveLink(request.getLiveLink());
         submission.setCustomAnswers(serializeCustomAnswers(request.getCustomAnswers()));
+        submission.setVersionNumber(1);
+        submission.setUpdatedBy(userId);
 
         submission = submissionRepository.save(submission);
-        auditLogService.logAction(userId, eventId, "CREATE_SUBMISSION", "Created submission: " + submission.getTitle() + " (Dup: " + isDup + ")");
+        auditLogService.logAction(userId, eventId, "CREATE_SUBMISSION", "Created submission: " + submission.getTitle() + " (v1, Dup: " + isDup + ")");
 
         if (webhookService != null) {
             try {
@@ -321,10 +323,13 @@ public class SubmissionService {
         if (request.getLiveLink() != null) submission.setLiveLink(request.getLiveLink());
         if (request.getCustomAnswers() != null) submission.setCustomAnswers(serializeCustomAnswers(request.getCustomAnswers()));
 
+        int nextVer = (submission.getVersionNumber() != null ? submission.getVersionNumber() : 1) + 1;
+        submission.setVersionNumber(nextVer);
+        submission.setUpdatedBy(userId);
         submission.setUpdatedAt(Instant.now());
         submission = submissionRepository.save(submission);
 
-        auditLogService.logAction(userId, submission.getEventId(), "UPDATE_SUBMISSION", "Updated submission: " + submission.getTitle());
+        auditLogService.logAction(userId, submission.getEventId(), "UPDATE_SUBMISSION", "Updated submission: " + submission.getTitle() + " (v" + nextVer + ")");
 
         if (webhookService != null) {
             try {
@@ -444,6 +449,8 @@ public class SubmissionService {
 
         res.setCreatedAt(s.getCreatedAt());
         res.setUpdatedAt(s.getUpdatedAt());
+        res.setVersionNumber(s.getVersionNumber() != null ? s.getVersionNumber() : 1);
+        res.setUpdatedBy(s.getUpdatedBy());
         return res;
     }
 
@@ -540,5 +547,102 @@ public class SubmissionService {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256 not available", e);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public SubmissionReadinessResponse checkSubmissionReadiness(Long eventId, Long submissionId, Long userId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new IllegalArgumentException("Event not found with id: " + eventId));
+
+        Submission submission = null;
+        if (submissionId != null) {
+            submission = submissionRepository.findById(submissionId).orElse(null);
+        } else if (userId != null) {
+            submission = submissionRepository.findFirstByEventIdAndCreatedByOrderByUpdatedAtDesc(eventId, userId).orElse(null);
+        }
+
+        Instant now = Instant.now();
+        Instant effectiveSubStart = event.getSubmissionStart() != null ? event.getSubmissionStart() : event.getRegistrationEnd();
+        boolean windowOpen = (effectiveSubStart == null || !now.isBefore(effectiveSubStart))
+                && (event.getSubmissionDeadline() == null || !now.isAfter(event.getSubmissionDeadline()));
+
+        String windowStatus = "OPEN";
+        Long remainingSeconds = null;
+        if (effectiveSubStart != null && now.isBefore(effectiveSubStart)) {
+            windowStatus = "NOT_STARTED";
+            windowOpen = false;
+        } else if (event.getSubmissionDeadline() != null) {
+            long diff = java.time.Duration.between(now, event.getSubmissionDeadline()).getSeconds();
+            if (diff <= 0) {
+                windowStatus = "CLOSED";
+                windowOpen = false;
+                remainingSeconds = 0L;
+            } else if (diff < 7200) {
+                windowStatus = "ENDING_SOON";
+                windowOpen = true;
+                remainingSeconds = diff;
+            } else {
+                windowStatus = "OPEN";
+                windowOpen = true;
+                remainingSeconds = diff;
+            }
+        }
+
+        boolean userRegistered = userId != null && eventRoleRepository.findByUserIdAndEventIdAndRole(userId, eventId, RoleType.PARTICIPANT).isPresent();
+        boolean teamValid = true;
+
+        boolean titleValid = submission != null && submission.getTitle() != null && !submission.getTitle().isBlank();
+        boolean taglineValid = submission != null && submission.getTagline() != null && !submission.getTagline().isBlank();
+        boolean descriptionValid = submission != null && submission.getDescription() != null && !submission.getDescription().isBlank();
+        boolean trackValid = submission != null && submission.getTrack() != null && !submission.getTrack().isBlank();
+        boolean repoUrlValid = submission != null && submission.getRepoUrl() != null && !submission.getRepoUrl().isBlank()
+                && (submission.getRepoUrl().startsWith("http://") || submission.getRepoUrl().startsWith("https://") || submission.getRepoUrl().startsWith("git@"));
+
+        List<String> missingFields = new ArrayList<>();
+        Map<String, String> fieldErrors = new HashMap<>();
+
+        if (!titleValid) {
+            missingFields.add("Title");
+            fieldErrors.put("title", "Project title is required");
+        }
+        if (!taglineValid) {
+            missingFields.add("Tagline");
+            fieldErrors.put("tagline", "Short tagline / elevator pitch is required");
+        }
+        if (!descriptionValid) {
+            missingFields.add("Description");
+            fieldErrors.put("description", "Project description / README is required");
+        }
+        if (!trackValid) {
+            missingFields.add("Track");
+            fieldErrors.put("track", "Please select a competition track");
+        }
+        if (!repoUrlValid) {
+            missingFields.add("Repository URL");
+            fieldErrors.put("repoUrl", "Valid code repository URL (https://) is required");
+        }
+        if (!windowOpen) {
+            fieldErrors.put("window", "Submissions are currently closed for this event");
+        }
+
+        boolean isReady = titleValid && taglineValid && descriptionValid && trackValid && repoUrlValid && windowOpen;
+
+        SubmissionReadinessResponse resp = new SubmissionReadinessResponse();
+        resp.setEventId(eventId);
+        resp.setSubmissionId(submission != null ? submission.getId() : null);
+        resp.setTitleValid(titleValid);
+        resp.setTaglineValid(taglineValid);
+        resp.setDescriptionValid(descriptionValid);
+        resp.setTrackValid(trackValid);
+        resp.setRepoUrlValid(repoUrlValid);
+        resp.setWindowOpen(windowOpen);
+        resp.setUserRegistered(userRegistered);
+        resp.setTeamValid(teamValid);
+        resp.setReady(isReady);
+        resp.setRemainingSeconds(remainingSeconds);
+        resp.setWindowStatus(windowStatus);
+        resp.setMissingFields(missingFields);
+        resp.setFieldErrors(fieldErrors);
+        return resp;
     }
 }

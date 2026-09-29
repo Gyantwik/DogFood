@@ -18,6 +18,8 @@ public class SignupRequest {
     @Size(min = 6, message = "Password must be at least 6 characters")
     private String password;
 
+    private String phone;
+
     public SignupRequest() {}
 
     public SignupRequest(String username, String email, String password) {
@@ -34,4 +36,7 @@ public class SignupRequest {
 
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
+
+    public String getPhone() { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
 }

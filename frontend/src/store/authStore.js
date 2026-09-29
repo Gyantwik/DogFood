@@ -50,7 +50,34 @@ class AuthStore {
   }
 
   getUser() {
-    return this.session ? this.session.user || { name: this.session.name, email: this.session.email } : null;
+    if (!this.session) return null;
+    return this.session.user || {
+      name: this.session.name,
+      username: this.session.username || this.session.name,
+      email: this.session.email,
+      phone: this.session.phone,
+      userId: this.session.userId,
+      role: this.getRole()
+    };
+  }
+
+  getPhone() {
+    return this.session?.phone || this.session?.user?.phone || null;
+  }
+
+  setPhone(phone) {
+    if (!this.session) {
+      this.session = { role: 'VISITOR', name: 'Visitor Voter', phone };
+    } else {
+      this.session.phone = phone;
+      if (this.session.user) this.session.user.phone = phone;
+    }
+    try {
+      localStorage.setItem(AUTH_KEY, JSON.stringify(this.session));
+    } catch {
+      // storage fallback
+    }
+    this.notify();
   }
 
   getRole() {

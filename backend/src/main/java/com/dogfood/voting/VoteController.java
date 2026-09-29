@@ -10,7 +10,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/events/{eventId}")
@@ -42,6 +46,35 @@ public class VoteController {
         Long userId = currentUser != null ? currentUser.getId() : null;
         VotingStatusResponse response = votingService.getVotingStatus(eventId, voterIdentifier, userId);
         return ResponseEntity.ok(ApiResponse.ok(response));
+    }
+
+    @GetMapping({"/voting/session-token", "/voting/token"})
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getSessionToken(@PathVariable Long eventId) {
+        String token = "voter_tok_" + UUID.randomUUID().toString();
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("sessionToken", token);
+        data.put("eventId", eventId);
+        data.put("issuedAt", Instant.now().toString());
+        return ResponseEntity.ok(ApiResponse.ok("Voter session token issued", data));
+    }
+
+    @PostMapping("/voting/email/send-code")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> sendEmailVerificationCode(
+            @PathVariable Long eventId,
+            @RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        Map<String, Object> result = votingService.sendEmailVerificationCode(eventId, email);
+        return ResponseEntity.ok(ApiResponse.ok("Verification code dispatched", result));
+    }
+
+    @PostMapping("/voting/email/verify-code")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> verifyEmailCode(
+            @PathVariable Long eventId,
+            @RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        String code = request.get("code");
+        Map<String, Object> result = votingService.verifyEmailCode(eventId, email, code);
+        return ResponseEntity.ok(ApiResponse.ok("Email successfully verified", result));
     }
 
     @GetMapping({"/voting/ballot", "/ballot"})

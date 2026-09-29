@@ -1,0 +1,38 @@
+# example.dogfood.toml
+# Copy this file to `.dogfood.toml` at the repository root and fill in the test tokens.
+# Run the acceptance checker with:  python run.py .dogfood.toml
+
+[portal]
+# Where your portal is listening after `docker compose up`.
+base_url = "http://localhost:8080"
+
+[tiers]
+# The tiers claimed. Honest claims only.
+claimed = ["T1", "T2"]
+pitch = "Self-hostable hackathon submission and judging platform with rigorous RBAC, judge isolation, and z-score normalization."
+
+[auth]
+# Header credentials for each test role.
+# Obtain fresh bearer tokens via POST /api/auth/login using seeded test credentials:
+#   organizer:   organizer@dogfood.local   / organizer_pass123
+#   judge_a:     judge_a@dogfood.local     / judge_a_pass123
+#   judge_b:     judge_b@dogfood.local     / judge_b_pass123
+#   participant: participant@dogfood.local / participant_pass123
+organizer   = "Authorization: Bearer <ORGANIZER_TOKEN>"
+judge_a     = "Authorization: Bearer <JUDGE_A_TOKEN>"
+judge_b     = "Authorization: Bearer <JUDGE_B_TOKEN>"
+participant = "Authorization: Bearer <PARTICIPANT_TOKEN>"
+
+[routes]
+# Route mappings matching your running portal.
+# Discover your fixture event ID via:
+#   curl -s http://localhost:8080/api/events | jq '.data[] | select(.name=="Sample Hack 2026") | .id'
+# (or in PowerShell: (Invoke-RestMethod http://localhost:8080/api/events).data | Where-Object { $_.name -eq "Sample Hack 2026" } | Select -ExpandProperty id)
+# and replace '<EVENT_ID>' below with the discovered number (e.g. 1).
+gallery      = "/api/events/<EVENT_ID>/submissions"
+submit       = "/api/events/<EVENT_ID>/submissions"
+judge_scores = "/api/judge/scores"
+# peer_scores is the url that would return judge_a's scores.
+# The checker visits it as judge_b, who should be refused (401 or 403).
+peer_scores  = "/api/judge/scores?judge=judge_a"
+csv_export   = "/api/events/<EVENT_ID>/export/scores"

@@ -137,3 +137,25 @@ export function countUp(el) {
 export function clamp(val, min, max) {
   return Math.max(min, Math.min(max, val));
 }
+
+/**
+ * Formats an ISO date-time string into a human-readable localized string
+ * @param {string|Date} isoString
+ * @returns {string}
+ */
+export function formatDateTime(isoString) {
+  if (!isoString) return 'Not configured';
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return String(isoString);
+    return d.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return String(isoString);
+  }
+}

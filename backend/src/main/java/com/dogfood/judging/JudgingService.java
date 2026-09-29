@@ -321,6 +321,10 @@ public class JudgingService {
         Set<Long> utilizedJudgeIds = new HashSet<>();
         int submissionsCovered = 0;
         int unassignedSubmissions = 0;
+        int projectsFullyCovered = 0;
+        int projectsUnderCovered = 0;
+        int assignmentsSkipped = 0;
+        List<String> skipReasons = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
 
         for (Submission sub : submissions) {
@@ -347,10 +351,14 @@ public class JudgingService {
             for (Long jId : candidateJudgeIds) {
                 // 1. Skip declared COI
                 if (coiRepository.existsByJudgeIdAndSubmissionId(jId, sub.getId())) {
+                    assignmentsSkipped++;
+                    skipReasons.add(String.format("Judge #%d skipped for project '%s' (COI declared)", jId, sub.getTitle()));
                     continue;
                 }
                 // 2. Skip team membership COI
                 if (sub.getTeamId() != null && teamMemberRepository.existsByTeamIdAndUserId(sub.getTeamId(), jId)) {
+                    assignmentsSkipped++;
+                    skipReasons.add(String.format("Judge #%d skipped for project '%s' (Team member)", jId, sub.getTitle()));
                     continue;
                 }
                 // 3. Skip already assigned
@@ -409,6 +417,12 @@ public class JudgingService {
                 unassignedSubmissions++;
             }
 
+            if (totalForSub >= targetReviews) {
+                projectsFullyCovered++;
+            } else {
+                projectsUnderCovered++;
+            }
+
             if (totalForSub < targetReviews) {
                 warnings.add(String.format("Submission %d ('%s') has only %d of %d requested reviews due to judge constraints.",
                         sub.getId(), sub.getTitle(), totalForSub, targetReviews));
@@ -429,13 +443,19 @@ public class JudgingService {
             } catch (Exception ignored) {}
         }
 
-        return new AutoAssignResult(
+        AutoAssignResult result = new AutoAssignResult(
                 totalAssignmentsCreated,
                 submissionsCovered,
                 utilizedJudgeIds.size(),
                 unassignedSubmissions,
                 warnings
         );
+        result.setProjectsFullyCovered(projectsFullyCovered);
+        result.setProjectsUnderCovered(projectsUnderCovered);
+        result.setAssignmentsCreated(totalAssignmentsCreated);
+        result.setAssignmentsSkipped(assignmentsSkipped);
+        result.setSkipReasons(skipReasons);
+        return result;
     }
 
     // -------------------------------------------------------------
@@ -1215,6 +1235,224 @@ public class JudgingService {
             list.add(map);
         }
         return list;
+    }
+
+    @Transactional(readOnly = true)
+    public JudgeCoverageDto getJudgeCoverage(Long eventId, Long callerUserId) {
+        authorizationPolicy.requireEventRole(callerUserId, eventId, RoleType.ORGANIZER);
+
+        List<Submission> submissions = submissionRepository.findByEventIdAndStatus(eventId, "SUBMITTED");
+        if (submissions.isEmpty()) {
+            submissions = submissionRepository.findByEventId(eventId);
+        }
+
+        List<JudgeAssignment> assignments = assignmentRepository.findByEventId(eventId);
+        List<Score> scores = scoreRepository.findByEventId(eventId);
+
+        int targetReviews = 3;
+        int fullyCovered = 0;
+        int underAssigned = 0;
+        int overAssigned = 0;
+        List<JudgeCoverageDto.ProjectCoverageItem> items = new ArrayList<>();
+
+        for (Submission sub : submissions) {
+            int assignedCount = 0;
+            if (assignments != null) {
+                for (JudgeAssignment a : assignments) {
+                    if (sub.getId().equals(a.getSubmissionId()) && !"REMOVED_COI".equalsIgnoreCase(a.getStatus())) {
+                        assignedCount++;
+                    }
+                }
+            }
+
+            int completedCount = 0;
+            if (scores != null) {
+                for (Score s : scores) {
+                    if (sub.getId().equals(s.getSubmissionId())) {
+                        completedCount++;
+                    }
+                }
+            }
+
+            JudgeCoverageDto.ProjectCoverageItem item = new JudgeCoverageDto.ProjectCoverageItem(
+                    sub.getId(),
+                    sub.getTitle(),
+                    sub.getTrack() != null ? sub.getTrack() : "General",
+                    assignedCount,
+                    completedCount,
+                    targetReviews
+            );
+            items.add(item);
+
+            if (assignedCount >= targetReviews) {
+                if (assignedCount > targetReviews) {
+                    overAssigned++;
+                } else {
+                    fullyCovered++;
+                }
+            } else {
+                underAssigned++;
+            }
+        }
+
+        JudgeCoverageDto dto = new JudgeCoverageDto();
+        dto.setEventId(eventId);
+        dto.setTotalProjects(submissions.size());
+        dto.setTargetReviewsPerProject(targetReviews);
+        dto.setFullyCoveredProjects(fullyCovered + overAssigned);
+        dto.setUnderAssignedProjects(underAssigned);
+        dto.setOverAssignedProjects(overAssigned);
+        double pct = submissions.isEmpty() ? 100.0 : Math.round((double)(fullyCovered + overAssigned) / submissions.size() * 1000.0) / 10.0;
+        dto.setOverallCoveragePercentage(pct);
+        dto.setProjectCoverages(items);
+
+        return dto;
+    }
+
+    @Transactional(readOnly = true)
+    public JudgeWorkloadDto getJudgeWorkload(Long eventId, Long callerUserId) {
+        authorizationPolicy.requireEventRole(callerUserId, eventId, RoleType.ORGANIZER);
+
+        List<EventRole> judgeRoles = eventRoleRepository.findByEventIdAndRole(eventId, RoleType.JUDGE);
+        List<JudgeAssignment> assignments = assignmentRepository.findByEventId(eventId);
+        List<Score> scores = scoreRepository.findByEventId(eventId);
+
+        List<JudgeWorkloadDto.JudgeWorkloadItem> items = new ArrayList<>();
+        int totalAssigned = 0;
+        int totalCompleted = 0;
+
+        for (EventRole role : judgeRoles) {
+            Long jId = role.getUser().getId();
+            User u = userRepository.findById(jId).orElse(null);
+            String name = u != null ? u.getUsername() : ("Judge #" + jId);
+            String email = u != null ? u.getEmail() : "";
+
+            int assigned = 0;
+            if (assignments != null) {
+                for (JudgeAssignment a : assignments) {
+                    if (jId.equals(a.getJudgeId()) && !"REMOVED_COI".equalsIgnoreCase(a.getStatus())) {
+                        assigned++;
+                    }
+                }
+            }
+
+            int completed = 0;
+            if (scores != null) {
+                for (Score s : scores) {
+                    if (jId.equals(s.getJudgeId())) {
+                        completed++;
+                    }
+                }
+            }
+
+            totalAssigned += assigned;
+            totalCompleted += completed;
+
+            items.add(new JudgeWorkloadDto.JudgeWorkloadItem(jId, name, email, assigned, completed));
+        }
+
+        JudgeWorkloadDto dto = new JudgeWorkloadDto();
+        dto.setEventId(eventId);
+        dto.setTotalJudges(judgeRoles.size());
+        dto.setTotalAssignments(totalAssigned);
+        dto.setTotalCompleted(totalCompleted);
+        double rate = totalAssigned > 0 ? Math.round((double) totalCompleted / totalAssigned * 1000.0) / 10.0 : 0.0;
+        dto.setOverallCompletionRate(rate);
+        dto.setJudges(items);
+
+        return dto;
+    }
+
+    @Transactional(readOnly = true)
+    public ScoringHealthDto getScoringHealth(Long eventId, Long callerUserId) {
+        authorizationPolicy.requireEventRole(callerUserId, eventId, RoleType.ORGANIZER);
+
+        List<Submission> submissions = submissionRepository.findByEventIdAndStatus(eventId, "SUBMITTED");
+        if (submissions.isEmpty()) {
+            submissions = submissionRepository.findByEventId(eventId);
+        }
+        int totalProjects = submissions.size();
+        int targetReviews = 3;
+        int totalReviewsRequired = totalProjects * targetReviews;
+
+        List<Score> scores = scoreRepository.findByEventId(eventId);
+        int completedReviews = scores.size();
+        double overallCompletionRate = totalReviewsRequired > 0
+                ? Math.round((double) completedReviews / totalReviewsRequired * 1000.0) / 10.0
+                : 0.0;
+
+        Map<Long, List<Score>> scoresBySub = scores.stream().collect(Collectors.groupingBy(Score::getSubmissionId));
+        int zeroReviews = 0;
+        int singleReview = 0;
+        int fullyReviewed = 0;
+
+        for (Submission sub : submissions) {
+            int count = scoresBySub.getOrDefault(sub.getId(), Collections.emptyList()).size();
+            if (count == 0) {
+                zeroReviews++;
+            } else if (count == 1) {
+                singleReview++;
+            } else if (count >= targetReviews) {
+                fullyReviewed++;
+            }
+        }
+
+        List<EventRole> judgeRoles = eventRoleRepository.findByEventIdAndRole(eventId, RoleType.JUDGE);
+        List<JudgeAssignment> assignments = assignmentRepository.findByEventId(eventId);
+        Map<Long, List<Score>> scoresByJudge = scores.stream().collect(Collectors.groupingBy(Score::getJudgeId));
+
+        int judgesWithIncompleteQueues = 0;
+        List<ScoringHealthDto.JudgeScoringHealthItem> judgeStats = new ArrayList<>();
+
+        for (EventRole role : judgeRoles) {
+            Long jId = role.getUser().getId();
+            User u = userRepository.findById(jId).orElse(null);
+            String name = u != null ? u.getUsername() : ("Judge #" + jId);
+
+            int assigned = 0;
+            if (assignments != null) {
+                for (JudgeAssignment a : assignments) {
+                    if (jId.equals(a.getJudgeId()) && !"REMOVED_COI".equalsIgnoreCase(a.getStatus())) {
+                        assigned++;
+                    }
+                }
+            }
+
+            List<Score> jScores = scoresByJudge.getOrDefault(jId, Collections.emptyList());
+            int completed = jScores.size();
+            if (assigned > completed) {
+                judgesWithIncompleteQueues++;
+            }
+
+            double mean = jScores.stream().mapToDouble(Score::getRawScore).average().orElse(0.0);
+            double sumSq = jScores.stream().mapToDouble(s -> Math.pow(s.getRawScore() - mean, 2)).sum();
+            double variance = jScores.size() > 1 ? sumSq / (jScores.size() - 1) : 0.0;
+            double stdDev = Math.sqrt(variance);
+
+            judgeStats.add(new ScoringHealthDto.JudgeScoringHealthItem(
+                    jId,
+                    name,
+                    assigned,
+                    completed,
+                    Math.round(mean * 100.0) / 100.0,
+                    Math.round(stdDev * 100.0) / 100.0
+            ));
+        }
+
+        ScoringHealthDto dto = new ScoringHealthDto();
+        dto.setEventId(eventId);
+        dto.setTotalProjects(totalProjects);
+        dto.setTargetReviewsPerProject(targetReviews);
+        dto.setTotalReviewsRequired(totalReviewsRequired);
+        dto.setCompletedReviews(completedReviews);
+        dto.setOverallCompletionRate(overallCompletionRate);
+        dto.setProjectsZeroReviews(zeroReviews);
+        dto.setProjectsSingleReview(singleReview);
+        dto.setProjectsFullyReviewed(fullyReviewed);
+        dto.setJudgesWithIncompleteQueues(judgesWithIncompleteQueues);
+        dto.setJudgeStats(judgeStats);
+
+        return dto;
     }
 }
 

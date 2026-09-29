@@ -1,6 +1,9 @@
 package com.dogfood.judging;
 
 import com.dogfood.common.ApiResponse;
+import com.dogfood.common.audit.AuditLogService;
+import com.dogfood.normalization.ZScoreNormalizationService;
+import com.dogfood.security.EventAuthorizationPolicy;
 import com.dogfood.security.UserPrincipal;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -16,9 +19,18 @@ import java.util.Map;
 public class JudgingController {
 
     private final JudgingService judgingService;
+    private final ZScoreNormalizationService zScoreNormalizationService;
+    private final AuditLogService auditLogService;
+    private final EventAuthorizationPolicy authorizationPolicy;
 
-    public JudgingController(JudgingService judgingService) {
+    public JudgingController(JudgingService judgingService,
+                             ZScoreNormalizationService zScoreNormalizationService,
+                             AuditLogService auditLogService,
+                             EventAuthorizationPolicy authorizationPolicy) {
         this.judgingService = judgingService;
+        this.zScoreNormalizationService = zScoreNormalizationService;
+        this.auditLogService = auditLogService;
+        this.authorizationPolicy = authorizationPolicy;
     }
 
     // -------------------------------------------------------------
@@ -298,6 +310,62 @@ public class JudgingController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         return ResponseEntity.ok(judgingService.getDashboardMetrics(eventId, principal.getId()));
+    }
+
+    // -------------------------------------------------------------
+    // Judge Operations & Reporting
+    // -------------------------------------------------------------
+
+    @GetMapping("/events/{eventId}/judging/coverage")
+    public ResponseEntity<JudgeCoverageDto> getJudgeCoverage(
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(judgingService.getJudgeCoverage(eventId, principal.getId()));
+    }
+
+    @GetMapping("/events/{eventId}/judging/workload")
+    public ResponseEntity<JudgeWorkloadDto> getJudgeWorkload(
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(judgingService.getJudgeWorkload(eventId, principal.getId()));
+    }
+
+    @GetMapping("/events/{eventId}/judging/scoring-health")
+    public ResponseEntity<ScoringHealthDto> getScoringHealth(
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(judgingService.getScoringHealth(eventId, principal.getId()));
+    }
+
+    @GetMapping("/events/{eventId}/judging/normalization-analysis")
+    public ResponseEntity<?> getNormalizationAnalysis(
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        authorizationPolicy.requireEventRole(principal.getId(), eventId, com.dogfood.auth.RoleType.ORGANIZER);
+        return ResponseEntity.ok(zScoreNormalizationService.getNormalizationAnalysis(eventId));
+    }
+
+    @GetMapping("/events/{eventId}/judging/normalization-proof")
+    public ResponseEntity<?> getNormalizationProof(
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        authorizationPolicy.requireEventRole(principal.getId(), eventId, com.dogfood.auth.RoleType.ORGANIZER);
+        return ResponseEntity.ok(zScoreNormalizationService.getNormalizationProof(eventId));
     }
 }
 

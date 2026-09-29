@@ -12,6 +12,7 @@ public class VotingStatusResponse {
     private boolean hasVoted;
     private Long votedSubmissionId;
     private long totalVotes;
+    private String voterSessionToken;
 
     public VotingStatusResponse() {}
 
@@ -24,6 +25,11 @@ public class VotingStatusResponse {
         this.hasVoted = hasVoted;
         this.votedSubmissionId = votedSubmissionId;
         this.totalVotes = totalVotes;
+    }
+
+    public VotingStatusResponse(boolean enabled, String accessMode, Instant votingStart, Instant votingEnd, boolean open, boolean hasVoted, Long votedSubmissionId, long totalVotes, String voterSessionToken) {
+        this(enabled, accessMode, votingStart, votingEnd, open, hasVoted, votedSubmissionId, totalVotes);
+        this.voterSessionToken = voterSessionToken;
     }
 
     public boolean isEnabled() { return enabled; }
@@ -50,4 +56,7 @@ public class VotingStatusResponse {
 
     public long getTotalVotes() { return totalVotes; }
     public void setTotalVotes(long totalVotes) { this.totalVotes = totalVotes; }
+
+    public String getVoterSessionToken() { return voterSessionToken; }
+    public void setVoterSessionToken(String voterSessionToken) { this.voterSessionToken = voterSessionToken; }
 }

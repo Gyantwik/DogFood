@@ -44,6 +44,15 @@ public class VerificationController {
         return ResponseEntity.ok(ApiResponse.ok(res));
     }
 
+    // Public endpoint to obtain a valid sample judge participation record for verification demonstrations
+    @GetMapping({"/api/verify/judge-record/sample", "/api/verify/judge-record/demo"})
+    public ResponseEntity<ApiResponse<JudgeRecordDto>> getSampleJudgeRecord(
+            @RequestParam(required = false, defaultValue = "1") Long eventId,
+            @RequestParam(required = false) Long judgeId) {
+        JudgeRecordDto record = judgeRecordService.generateSampleJudgeRecord(eventId, judgeId);
+        return ResponseEntity.ok(ApiResponse.ok("Sample authentic judge record generated", record));
+    }
+
     // Organizer generates certificates for an event
     @PostMapping("/api/events/{eventId}/certificates/generate")
     public ResponseEntity<ApiResponse<List<CertificateDto>>> generateCertificates(
@@ -61,6 +70,17 @@ public class VerificationController {
     public ResponseEntity<ApiResponse<List<CertificateDto>>> listCertificates(
             @PathVariable Long eventId) {
         List<CertificateDto> certs = certificateService.listCertificatesForEvent(eventId);
+        return ResponseEntity.ok(ApiResponse.ok(certs));
+    }
+
+    // Authenticated user fetches all certificates issued to them
+    @GetMapping({"/api/certificates/me", "/api/users/me/certificates"})
+    public ResponseEntity<ApiResponse<List<CertificateDto>>> getMyCertificates(
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("Authentication required"));
+        }
+        List<CertificateDto> certs = certificateService.listCertificatesForUser(currentUser.getId());
         return ResponseEntity.ok(ApiResponse.ok(certs));
     }
 

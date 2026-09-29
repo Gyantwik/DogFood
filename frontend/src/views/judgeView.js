@@ -25,6 +25,12 @@ export async function renderJudge(container, targetAssignmentId = null) {
     </div>
   </div>
 
+  <!-- Judging Mode Switcher -->
+  <div style="display:flex;align-items:center;gap:8px;margin:16px 0 14px;background:var(--glass2);padding:5px 8px;border-radius:12px;border:1px solid var(--line);width:fit-content">
+    <button class="btn sm active" id="modeRubricTabBtn" type="button" style="display:flex;align-items:center;gap:6px">📋 Rubric Scoring</button>
+    <button class="btn sm ghost" id="modePairwiseTabBtn" type="button" style="display:flex;align-items:center;gap:6px">⚔️ Pairwise Duel</button>
+  </div>
+
   <!-- Clear COI Explanation Banner -->
   <div id="coiExplBanner" style="background:rgba(255,180,0,0.08);border:1px solid rgba(255,180,0,0.25);border-radius:14px;padding:14px 18px;margin:16px 0 20px;display:flex;align-items:flex-start;gap:12px;font-size:0.88rem;color:var(--text);line-height:1.5">
     <span style="font-size:1.3rem;line-height:1">⚖️</span>
@@ -36,6 +42,11 @@ export async function renderJudge(container, targetAssignmentId = null) {
 
   <div id="judgeContentArea">
     <div style="padding:40px;text-align:center;color:var(--mute)">Loading assignments from server...</div>
+  </div>
+
+  <!-- Pairwise Judging Mode Arena -->
+  <div id="pairwiseContentArea" style="display:none">
+    <div style="padding:40px;text-align:center;color:var(--mute)">Loading pairwise matchup...</div>
   </div>
 
   <!-- Score Confirmation Modal -->
@@ -643,11 +654,17 @@ export async function renderJudge(container, targetAssignmentId = null) {
     const p = queue[index];
     const isCompleted = p.status === 'COMPLETED';
 
-    document.getElementById('jTrack').textContent = p.tr;
-    document.getElementById('jQueuePos').textContent = `Project ${index + 1} of ${queue.length}`;
-    document.getElementById('jTitle').textContent = p.n;
-    document.getElementById('jTagline').textContent = p.t;
-    document.getElementById('jDesc').textContent = p.d;
+    const trackEl = document.getElementById('jTrack');
+    if (!trackEl) return;
+    trackEl.textContent = p.tr;
+    const queuePosEl = document.getElementById('jQueuePos');
+    if (queuePosEl) queuePosEl.textContent = `Project ${index + 1} of ${queue.length}`;
+    const titleEl = document.getElementById('jTitle');
+    if (titleEl) titleEl.textContent = p.n;
+    const taglineEl = document.getElementById('jTagline');
+    if (taglineEl) taglineEl.textContent = p.t;
+    const descEl = document.getElementById('jDesc');
+    if (descEl) descEl.textContent = p.d;
 
     // Status notice for completed review vs pending
     const statusNotice = document.getElementById('reviewStatusNotice');
@@ -951,4 +968,288 @@ export async function renderJudge(container, targetAssignmentId = null) {
       confirmBtn.disabled = false;
     }
   });
+
+  // ==========================================
+  // PAIRWISE JUDGING MODE CONTROLLER
+  // ==========================================
+  const modeRubricTabBtn = document.getElementById('modeRubricTabBtn');
+  const modePairwiseTabBtn = document.getElementById('modePairwiseTabBtn');
+  const coiExplBanner = document.getElementById('coiExplBanner');
+  const pairwiseContentArea = document.getElementById('pairwiseContentArea');
+
+  let activeJudgingMode = 'rubric';
+  let pairwiseKeyHandler = null;
+
+  function switchJudgingMode(newMode) {
+    activeJudgingMode = newMode;
+    if (newMode === 'pairwise') {
+      modeRubricTabBtn?.classList.remove('active');
+      modeRubricTabBtn?.classList.add('ghost');
+      modePairwiseTabBtn?.classList.add('active');
+      modePairwiseTabBtn?.classList.remove('ghost');
+
+      if (coiExplBanner) coiExplBanner.style.display = 'none';
+      if (contentArea) contentArea.style.display = 'none';
+      if (coiBtn) coiBtn.style.display = 'none';
+      if (pairwiseContentArea) {
+        pairwiseContentArea.style.display = 'block';
+        loadPairwiseDuel();
+      }
+    } else {
+      modePairwiseTabBtn?.classList.remove('active');
+      modePairwiseTabBtn?.classList.add('ghost');
+      modeRubricTabBtn?.classList.add('active');
+      modeRubricTabBtn?.classList.remove('ghost');
+
+      if (coiExplBanner) coiExplBanner.style.display = 'flex';
+      if (contentArea) contentArea.style.display = 'block';
+      if (coiBtn && queue.length > 0) coiBtn.style.display = 'inline-block';
+      if (pairwiseContentArea) pairwiseContentArea.style.display = 'none';
+      if (pairwiseKeyHandler) {
+        window.removeEventListener('keydown', pairwiseKeyHandler);
+        pairwiseKeyHandler = null;
+      }
+    }
+  }
+
+  modeRubricTabBtn?.addEventListener('click', () => switchJudgingMode('rubric'));
+  modePairwiseTabBtn?.addEventListener('click', () => switchJudgingMode('pairwise'));
+
+  async function loadPairwiseDuel() {
+    if (!activeEventId) {
+      pairwiseContentArea.innerHTML = `
+        <div class="card" style="text-align:center;padding:40px 20px">
+          <p style="color:var(--mute)">Please select an active hackathon event first.</p>
+        </div>
+      `;
+      return;
+    }
+
+    pairwiseContentArea.innerHTML = `
+      <div style="padding:48px 20px;text-align:center;color:var(--mute)">
+        <div style="font-size:2rem;margin-bottom:8px">⚔️</div>
+        Loading pairwise matchup...
+      </div>
+    `;
+
+    try {
+      const [progRes, pairRes] = await Promise.all([
+        api.getJudgePairwiseProgress(activeEventId).catch(() => null),
+        api.getNextPair(activeEventId).catch(err => { throw err; })
+      ]);
+
+      const isEnabled = progRes ? progRes.pairwiseEnabled : true;
+      if (isEnabled === false) {
+        pairwiseContentArea.innerHTML = `
+          <div class="card" style="text-align:center;padding:48px 24px;margin-top:16px">
+            <div style="font-size:2.6rem;margin-bottom:12px">⚔️</div>
+            <h3 style="font-size:1.5rem">Pairwise Judging is Currently Disabled</h3>
+            <p style="color:var(--mute);max-width:48ch;margin:8px auto 20px">
+              The organizer has not enabled Pairwise Judging for this event. You can continue evaluating submissions using standard Rubric Scoring.
+            </p>
+            <button class="btn main sm" id="returnToRubricFromDisabledBtn" type="button">&larr; Return to Rubric Scoring</button>
+          </div>
+        `;
+        document.getElementById('returnToRubricFromDisabledBtn')?.addEventListener('click', () => switchJudgingMode('rubric'));
+        return;
+      }
+
+      if (!pairRes.pairAvailable || !pairRes.projectA || !pairRes.projectB) {
+        const completed = progRes?.completedComparisons || pairRes.totalComparedByJudge || 0;
+        pairwiseContentArea.innerHTML = `
+          <div class="card" style="text-align:center;padding:48px 24px;margin-top:16px">
+            <div style="font-size:2.8rem;margin-bottom:12px">🎉</div>
+            <h3 style="font-size:1.6rem">All Matchups Completed!</h3>
+            <p style="color:var(--mute);max-width:50ch;margin:8px auto 20px">
+              ${escapeHtml(pairRes.message || 'You have compared all eligible project pairs available for your assignment queue.')}
+            </p>
+            <div style="display:inline-flex;gap:12px;background:var(--glass2);padding:10px 18px;border-radius:12px;border:1px solid var(--line);margin-bottom:24px">
+              <span>Comparisons completed: <b style="color:var(--c)">${completed}</b></span>
+            </div>
+            <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+              <button class="btn ghost sm" id="retryPairwiseBtn" type="button">🔄 Check for New Matchups</button>
+              <button class="btn main sm" id="returnToRubricFromDoneBtn" type="button">&larr; Rubric Scoring</button>
+            </div>
+          </div>
+        `;
+        document.getElementById('retryPairwiseBtn')?.addEventListener('click', () => loadPairwiseDuel());
+        document.getElementById('returnToRubricFromDoneBtn')?.addEventListener('click', () => switchJudgingMode('rubric'));
+        return;
+      }
+
+      const pA = pairRes.projectA;
+      const pB = pairRes.projectB;
+      const completed = progRes?.completedComparisons || pairRes.totalComparedByJudge || 0;
+
+      const jqEl = document.getElementById('jq');
+      if (jqEl) jqEl.textContent = `Pairwise: ${completed} completed`;
+
+      pairwiseContentArea.innerHTML = `
+        <div style="margin-top:10px">
+          <!-- Arena Header -->
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px">
+            <div>
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+                <span class="bdg hl" style="font-weight:700">PAIRWISE COMPARISON</span>
+                <span style="color:var(--mute);font-size:0.85rem">Which project is stronger?</span>
+              </div>
+              <h2 style="font-size:1.5rem;margin:0">Head-to-Head Evaluation</h2>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <span class="bdg ok">${completed} Comparisons Completed</span>
+              <button class="btn ghost sm" id="skipPairwiseBtn" type="button" title="Get a different pair (S)">⏭️ Skip Pair</button>
+            </div>
+          </div>
+
+          <!-- Keyboard Hints Banner -->
+          <div style="display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:10px;padding:8px 14px;margin-bottom:20px;font-size:0.8rem;color:var(--mute)">
+            <span>💡 <b>Keyboard Shortcuts:</b> Press <kbd style="background:var(--glass2);padding:2px 6px;border-radius:4px;border:1px solid var(--line);color:var(--text)">A</kbd> or <kbd style="background:var(--glass2);padding:2px 6px;border-radius:4px;border:1px solid var(--line);color:var(--text)">&larr;</kbd> for Project A &bull; Press <kbd style="background:var(--glass2);padding:2px 6px;border-radius:4px;border:1px solid var(--line);color:var(--text)">B</kbd> or <kbd style="background:var(--glass2);padding:2px 6px;border-radius:4px;border:1px solid var(--line);color:var(--text)">&rarr;</kbd> for Project B &bull; Press <kbd style="background:var(--glass2);padding:2px 6px;border-radius:4px;border:1px solid var(--line);color:var(--text)">S</kbd> to skip</span>
+            <span style="color:var(--mute)">Strict Zero-Leakage: Ballots are completely confidential</span>
+          </div>
+
+          <!-- Duel Cards Container -->
+          <div style="display:grid;grid-template-columns:1fr 70px 1fr;gap:16px;align-items:stretch;margin-bottom:20px">
+            <!-- Project A Card -->
+            <div class="card" style="display:flex;flex-direction:column;justify-content:space-between;border:1px solid rgba(59,130,246,0.3);background:rgba(59,130,246,0.02);position:relative">
+              <div style="position:absolute;top:14px;right:14px">
+                <span class="bdg" style="background:#2563EB;color:#FFF;font-weight:700">PROJECT A</span>
+              </div>
+              <div>
+                <span class="trk" style="margin-bottom:6px;display:inline-block">${escapeHtml(pA.track || 'General')}</span>
+                <h3 style="font-size:1.4rem;margin:0 0 8px;padding-right:80px;line-height:1.25">${escapeHtml(pA.title)}</h3>
+                <p style="color:var(--c);font-weight:500;font-size:0.92rem;margin:0 0 12px">${escapeHtml(pA.tagline || '')}</p>
+                <div style="color:var(--mute);font-size:0.9rem;line-height:1.5;margin-bottom:16px;max-height:180px;overflow-y:auto">
+                  ${escapeHtml(pA.description || 'No description provided.')}
+                </div>
+                <!-- Links -->
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+                  ${pA.demoUrl ? `<a href="${sanitizeUrl(pA.demoUrl)}" target="_blank" rel="noopener" class="btn ghost sm" style="font-size:0.75rem;padding:3px 8px">🔗 Demo</a>` : ''}
+                  ${pA.repoUrl ? `<a href="${sanitizeUrl(pA.repoUrl)}" target="_blank" rel="noopener" class="btn ghost sm" style="font-size:0.75rem;padding:3px 8px">💻 Code</a>` : ''}
+                  ${pA.videoUrl ? `<a href="${sanitizeUrl(pA.videoUrl)}" target="_blank" rel="noopener" class="btn ghost sm" style="font-size:0.75rem;padding:3px 8px">🎬 Video</a>` : ''}
+                </div>
+              </div>
+              <div>
+                <button class="btn main" id="voteProjectABtn" type="button" style="width:100%;padding:14px;font-size:1.05rem;background:#2563EB;border:1px solid #3B82F6;color:#FFF;font-weight:700">
+                  🏆 Project A is Better &rarr;
+                </button>
+              </div>
+            </div>
+
+            <!-- VS Badge -->
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center">
+              <div style="width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,0.08);border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:1rem;color:var(--text);letter-spacing:1px;box-shadow:0 0 16px rgba(0,0,0,0.5)">
+                VS
+              </div>
+            </div>
+
+            <!-- Project B Card -->
+            <div class="card" style="display:flex;flex-direction:column;justify-content:space-between;border:1px solid rgba(139,92,246,0.3);background:rgba(139,92,246,0.02);position:relative">
+              <div style="position:absolute;top:14px;right:14px">
+                <span class="bdg" style="background:#8B5CF6;color:#FFF;font-weight:700">PROJECT B</span>
+              </div>
+              <div>
+                <span class="trk" style="margin-bottom:6px;display:inline-block">${escapeHtml(pB.track || 'General')}</span>
+                <h3 style="font-size:1.4rem;margin:0 0 8px;padding-right:80px;line-height:1.25">${escapeHtml(pB.title)}</h3>
+                <p style="color:var(--p);font-weight:500;font-size:0.92rem;margin:0 0 12px">${escapeHtml(pB.tagline || '')}</p>
+                <div style="color:var(--mute);font-size:0.9rem;line-height:1.5;margin-bottom:16px;max-height:180px;overflow-y:auto">
+                  ${escapeHtml(pB.description || 'No description provided.')}
+                </div>
+                <!-- Links -->
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+                  ${pB.demoUrl ? `<a href="${sanitizeUrl(pB.demoUrl)}" target="_blank" rel="noopener" class="btn ghost sm" style="font-size:0.75rem;padding:3px 8px">🔗 Demo</a>` : ''}
+                  ${pB.repoUrl ? `<a href="${sanitizeUrl(pB.repoUrl)}" target="_blank" rel="noopener" class="btn ghost sm" style="font-size:0.75rem;padding:3px 8px">💻 Code</a>` : ''}
+                  ${pB.videoUrl ? `<a href="${sanitizeUrl(pB.videoUrl)}" target="_blank" rel="noopener" class="btn ghost sm" style="font-size:0.75rem;padding:3px 8px">🎬 Video</a>` : ''}
+                </div>
+              </div>
+              <div>
+                <button class="btn main" id="voteProjectBBtn" type="button" style="width:100%;padding:14px;font-size:1.05rem;background:#8B5CF6;border:1px solid #A78BFA;color:#FFF;font-weight:700">
+                  🏆 Project B is Better &rarr;
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Notes & Options -->
+          <div class="card" style="padding:14px 18px">
+            <div class="fld" style="margin:0">
+              <label for="pairwiseNotesInput" style="font-size:0.85rem">Comparative Rationale (optional):</label>
+              <input type="text" id="pairwiseNotesInput" placeholder="e.g. Project A demonstrated deeper technical polish and clearer architecture." style="width:100%;border-radius:10px;background:var(--glass2);border:1px solid var(--line);padding:8px 12px;color:var(--text);font-size:0.88rem">
+            </div>
+          </div>
+        </div>
+      `;
+
+      const voteABtn = document.getElementById('voteProjectABtn');
+      const voteBBtn = document.getElementById('voteProjectBBtn');
+      const skipBtn = document.getElementById('skipPairwiseBtn');
+      const notesInput = document.getElementById('pairwiseNotesInput');
+
+      async function submitDecision(winnerId) {
+        if (!winnerId) return;
+        voteABtn.disabled = true;
+        voteBBtn.disabled = true;
+        skipBtn.disabled = true;
+
+        const winnerTitle = winnerId === pA.id ? pA.title : pB.title;
+        const notes = notesInput?.value?.trim() || '';
+
+        try {
+          await api.submitPairwiseComparison(activeEventId, {
+            projectAId: pA.id,
+            projectBId: pB.id,
+            winnerProjectId: winnerId,
+            notes: notes || null
+          });
+          notify(`Comparison recorded: "${winnerTitle}" won! Loading next pair...`, 'success');
+          loadPairwiseDuel();
+        } catch (err) {
+          if (err.message && err.message.includes('409')) {
+            notify('This pair was already evaluated. Loading fresh matchup...', 'info');
+            loadPairwiseDuel();
+          } else {
+            notify(`Submission failed: ${err.message}`, 'error');
+            voteABtn.disabled = false;
+            voteBBtn.disabled = false;
+            skipBtn.disabled = false;
+          }
+        }
+      }
+
+      voteABtn?.addEventListener('click', () => submitDecision(pA.id));
+      voteBBtn?.addEventListener('click', () => submitDecision(pB.id));
+      skipBtn?.addEventListener('click', () => loadPairwiseDuel());
+
+      if (pairwiseKeyHandler) {
+        window.removeEventListener('keydown', pairwiseKeyHandler);
+      }
+      pairwiseKeyHandler = (e) => {
+        if (activeJudgingMode !== 'pairwise') return;
+        const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+        if (tag === 'input' || tag === 'textarea') return;
+
+        if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') {
+          e.preventDefault();
+          voteABtn?.click();
+        } else if (e.key === 'b' || e.key === 'B' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          voteBBtn?.click();
+        } else if (e.key === 's' || e.key === 'S') {
+          e.preventDefault();
+          skipBtn?.click();
+        }
+      };
+      window.addEventListener('keydown', pairwiseKeyHandler);
+
+    } catch (err) {
+      pairwiseContentArea.innerHTML = `
+        <div class="card" style="text-align:center;padding:40px 20px;border:1px solid rgba(255,122,144,0.3);margin-top:16px">
+          <div style="font-size:2.2rem;margin-bottom:8px">⚠️</div>
+          <h3 style="font-size:1.4rem;color:var(--bad)">Unable to Load Pairwise Matchup</h3>
+          <p style="color:var(--mute);max-width:44ch;margin:8px auto 16px">${escapeHtml(err.message)}</p>
+          <button class="btn ghost sm" id="retryPairwiseErrBtn" type="button">🔄 Retry</button>
+        </div>
+      `;
+      document.getElementById('retryPairwiseErrBtn')?.addEventListener('click', () => loadPairwiseDuel());
+    }
+  }
 }

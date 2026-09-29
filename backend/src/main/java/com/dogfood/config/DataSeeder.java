@@ -3,6 +3,8 @@ package com.dogfood.config;
 import com.dogfood.auth.*;
 import com.dogfood.events.*;
 import com.dogfood.judging.*;
+import com.dogfood.pairwise.PairwiseComparison;
+import com.dogfood.pairwise.PairwiseComparisonRepository;
 import com.dogfood.security.JwtTokenProvider;
 import com.dogfood.teams.*;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -39,6 +41,7 @@ public class DataSeeder implements CommandLineRunner {
     private final JudgeTrackRepository judgeTrackRepository;
     private final ScoreRepository scoreRepository;
     private final ScoreCriterionValueRepository scoreCriterionValueRepository;
+    private final PairwiseComparisonRepository pairwiseComparisonRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final ObjectMapper objectMapper;
@@ -57,6 +60,7 @@ public class DataSeeder implements CommandLineRunner {
             JudgeTrackRepository judgeTrackRepository,
             ScoreRepository scoreRepository,
             ScoreCriterionValueRepository scoreCriterionValueRepository,
+            PairwiseComparisonRepository pairwiseComparisonRepository,
             PasswordEncoder passwordEncoder,
             JwtTokenProvider jwtTokenProvider) {
         this.userRepository = userRepository;
@@ -72,6 +76,7 @@ public class DataSeeder implements CommandLineRunner {
         this.judgeTrackRepository = judgeTrackRepository;
         this.scoreRepository = scoreRepository;
         this.scoreCriterionValueRepository = scoreCriterionValueRepository;
+        this.pairwiseComparisonRepository = pairwiseComparisonRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.objectMapper = new ObjectMapper();
@@ -363,6 +368,50 @@ public class DataSeeder implements CommandLineRunner {
 
         log.info("Fixture ingestion completed successfully. Tracks: {}, Judges: {}, Teams: {}, Projects: {}",
                 trackMap.size(), judgeMap.size(), teamMap.size(), submissionMap.size());
+
+        // Enable pairwise judging on fixture event and seed demo pairwise comparisons
+        eventRepository.findById(eventId).ifPresent(ev -> {
+            ev.setPairwiseJudgingEnabled(true);
+            eventRepository.save(ev);
+
+            if (pairwiseComparisonRepository.countByEventId(eventId) == 0 && !submissionMap.isEmpty() && !judgeMap.isEmpty()) {
+                List<Long> seededSubIds = new ArrayList<>(submissionMap.values());
+                List<Long> seededJudgeIds = new ArrayList<>(judgeMap.values());
+
+                if (seededSubIds.size() >= 4 && !seededJudgeIds.isEmpty()) {
+                    int subLimit = Math.min(10, seededSubIds.size());
+                    // Seed a connected comparison graph across the first subLimit submissions
+                    for (int i = 0; i < subLimit - 1; i++) {
+                        Long sub1Id = seededSubIds.get(i);
+                        Long sub2Id = seededSubIds.get(i + 1);
+                        Long judgeId = seededJudgeIds.get(i % seededJudgeIds.size());
+                        Long pA = Math.min(sub1Id, sub2Id);
+                        Long pB = Math.max(sub1Id, sub2Id);
+                        Long winner = (i % 2 == 0) ? pA : pB;
+                        if (!pairwiseComparisonRepository.existsByJudgeIdAndEventIdAndProjectAIdAndProjectBId(judgeId, eventId, pA, pB)) {
+                            pairwiseComparisonRepository.save(new PairwiseComparison(
+                                    eventId, null, judgeId, pA, pB, winner
+                            ));
+                        }
+                    }
+                    // Additional cross-edges to ensure robust cycles and density
+                    for (int i = 0; i < subLimit - 2; i += 2) {
+                        Long sub1Id = seededSubIds.get(i);
+                        Long sub2Id = seededSubIds.get(i + 2);
+                        Long judgeId = seededJudgeIds.get((i + 3) % seededJudgeIds.size());
+                        Long pA = Math.min(sub1Id, sub2Id);
+                        Long pB = Math.max(sub1Id, sub2Id);
+                        Long winner = pA;
+                        if (!pairwiseComparisonRepository.existsByJudgeIdAndEventIdAndProjectAIdAndProjectBId(judgeId, eventId, pA, pB)) {
+                            pairwiseComparisonRepository.save(new PairwiseComparison(
+                                    eventId, null, judgeId, pA, pB, winner
+                            ));
+                        }
+                    }
+                    log.info("Seeded demo pairwise comparisons for event {}", eventId);
+                }
+            }
+        });
     }
 
     private void ensureCriterion(Rubric rubric, String name, String key, double weight) {

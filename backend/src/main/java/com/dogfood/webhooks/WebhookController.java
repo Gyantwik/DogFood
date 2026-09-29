@@ -74,11 +74,25 @@ public class WebhookController {
     public ResponseEntity<ApiResponse<WebhookDeliveryDto>> testWebhook(
             @PathVariable Long eventId,
             @PathVariable Long webhookId,
+            @RequestParam(required = false, defaultValue = "test.ping") String event,
             @AuthenticationPrincipal UserPrincipal currentUser) {
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("Authentication required"));
         }
-        WebhookDeliveryDto delivery = webhookService.testDelivery(eventId, webhookId, currentUser.getId());
+        WebhookDeliveryDto delivery = webhookService.testDelivery(eventId, webhookId, event, currentUser.getId());
         return ResponseEntity.ok(ApiResponse.ok("Test webhook dispatched", delivery));
+    }
+
+    @PostMapping("/{webhookId}/deliveries/{deliveryId}/retry")
+    public ResponseEntity<ApiResponse<WebhookDeliveryDto>> retryDelivery(
+            @PathVariable Long eventId,
+            @PathVariable Long webhookId,
+            @PathVariable Long deliveryId,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("Authentication required"));
+        }
+        WebhookDeliveryDto delivery = webhookService.retryDelivery(eventId, webhookId, deliveryId, currentUser.getId());
+        return ResponseEntity.ok(ApiResponse.ok("Webhook delivery retried successfully", delivery));
     }
 }
